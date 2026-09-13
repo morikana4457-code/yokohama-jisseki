@@ -95,14 +95,14 @@
       display: block;
       width: 100%;
       max-width: 640px;
-      margin: 0 auto 36px;
-      padding: 24px 20px;
+      margin: 0 auto 30px;
+      padding: 16px 18px;
       border: none;
-      border-radius: 28px;
+      border-radius: 20px;
       background: var(--green);
       color: #fff;
       text-decoration: none;
-      font-size: 28px;
+      font-size: 21px;
       font-weight: 800;
       line-height: 1.1;
       letter-spacing: 0.02em;
@@ -155,10 +155,10 @@
       }
 
       .open-button {
-        font-size: 22px;
-        padding: 20px 16px;
-        border-radius: 24px;
-        margin-bottom: 28px;
+        font-size: 18px;
+        padding: 15px 14px;
+        border-radius: 18px;
+        margin-bottom: 24px;
       }
 
       .note {
@@ -187,8 +187,7 @@
       <a
         id="openAppButton"
         class="open-button"
-        href="YOUR_YOKOHAMA_JISSEKI_APP_URL"
-        target="_blank"
+        href="https://script.google.com/macros/s/AKfycbxQU_q2_2iG4RfADWcJ6-hzyK_lC5zu7HvRV5u7nrN4T7ggvpLyaZm_AcG9KKfDLe-A/exec?page=viewer"
         rel="noopener">
         納品実績を開く
       </a>
@@ -201,26 +200,14 @@
   </div>
 
   <script>
-    const APP_URL =
-      'YOUR_YOKOHAMA_JISSEKI_APP_URL';
+    const APP_URL = "https://script.google.com/macros/s/AKfycbxQU_q2_2iG4RfADWcJ6-hzyK_lC5zu7HvRV5u7nrN4T7ggvpLyaZm_AcG9KKfDLe-A/exec?page=viewer";
 
-    const button =
-      document.getElementById(
-        'openAppButton'
-      );
+    const isStandalone =
+      window.matchMedia("(display-mode: standalone)").matches ||
+      window.navigator.standalone === true;
 
-    button.href = APP_URL;
-
-    if (
-      window.matchMedia('(display-mode: standalone)').matches ||
-      window.navigator.standalone === true
-    ) {
-      if (
-        APP_URL &&
-        !APP_URL.includes('YOUR_YOKOHAMA_JISSEKI_APP_URL')
-      ) {
-        window.location.href = APP_URL;
-      }
+    if (isStandalone) {
+      window.location.replace(APP_URL);
     }
   </script>
 
