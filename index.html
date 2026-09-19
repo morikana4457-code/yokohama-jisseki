@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>横浜 納品実績</title>
+  <title>納品実績</title>
 
   <link rel="icon" type="image/png" href="yokohama_jisseki_icon.png">
   <link rel="apple-touch-icon" href="yokohama_jisseki_icon.png">
@@ -11,153 +11,17 @@
   <meta name="theme-color" content="#0e2440">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="apple-mobile-web-app-title" content="横浜 納品実績">
-
-  <style>
-    :root {
-      --bg: #edf2f5;
-      --card: #ffffff;
-      --text: #183153;
-      --sub: #6b7a8c;
-      --green: #138246;
-      --green-dark: #0f6d3a;
-      --shadow: 0 10px 32px rgba(0, 0, 0, 0.08);
-      --radius: 30px;
-    }
-
-    * { box-sizing: border-box; }
-
-    body {
-      margin: 0;
-      min-height: 100vh;
-      background: var(--bg);
-      font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue",
-        "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, sans-serif;
-      color: var(--text);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 24px;
-    }
-
-    .wrap {
-      width: 100%;
-      max-width: 760px;
-    }
-
-    .card {
-      background: var(--card);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow);
-      padding: 54px 44px 46px;
-      text-align: center;
-    }
-
-    .icon {
-      width: 265px;
-      max-width: 54vw;
-      height: auto;
-      display: block;
-      margin: 0 auto 28px;
-      border-radius: 22px;
-    }
-
-    h1 {
-      margin: 0 0 24px;
-      font-size: 34px;
-      line-height: 1.2;
-      font-weight: 800;
-      color: var(--text);
-    }
-
-    .lead {
-      margin: 0 auto 34px;
-      max-width: 540px;
-      font-size: 18px;
-      line-height: 1.9;
-      color: var(--sub);
-      font-weight: 500;
-    }
-
-    .open-button {
-      display: block;
-      width: 100%;
-      max-width: 640px;
-      margin: 0 auto 36px;
-      padding: 24px 20px;
-      border: none;
-      border-radius: 28px;
-      background: var(--green);
-      color: #fff;
-      text-decoration: none;
-      font-size: 28px;
-      font-weight: 800;
-      line-height: 1.1;
-      box-shadow: 0 6px 14px rgba(19, 130, 70, 0.24);
-    }
-
-    .open-button:hover { background: var(--green-dark); }
-
-    .note {
-      margin: 0;
-      font-size: 18px;
-      line-height: 1.8;
-      color: var(--sub);
-      font-weight: 500;
-    }
-
-    @media (max-width: 640px) {
-      body { padding: 18px; }
-      .card { padding: 38px 24px 32px; border-radius: 26px; }
-      .icon { width: 190px; max-width: 62vw; margin-bottom: 22px; }
-      h1 { font-size: 28px; margin-bottom: 18px; }
-      .lead { font-size: 16px; margin-bottom: 28px; }
-      .open-button { font-size: 22px; padding: 20px 16px; border-radius: 24px; margin-bottom: 28px; }
-      .note { font-size: 16px; }
-    }
-  </style>
+  <meta name="apple-mobile-web-app-title" content="納品実績">
 </head>
 
 <body>
-  <div class="wrap">
-    <div class="card">
-      <img
-        class="icon"
-        src="yokohama_jisseki_icon.png"
-        alt="横浜 納品実績">
-
-      <h1>横浜 納品実績</h1>
-
-      <p class="lead">
-        横浜営業所の納品実績を開きます。
-      </p>
-
-      <a
-        id="openAppButton"
-        class="open-button"
-        href="https://script.google.com/macros/s/AKfycbwQ81_BAcdPaeBqWhqqcQchRWUXlLzy2FztJmYTTkCudGQjMDRqhSLSN0BwMjsgA068/exec?page=viewer">
-        納品実績を開く
-      </a>
-
-      <p class="note">
-        ホーム画面から起動した場合も納品実績を開きます。
-      </p>
-    </div>
-  </div>
-
   <script>
-    const APP_URL = 'https://script.google.com/macros/s/AKfycbwQ81_BAcdPaeBqWhqqcQchRWUXlLzy2FztJmYTTkCudGQjMDRqhSLSN0BwMjsgA068/exec?page=viewer';
-
-    document
-      .getElementById('openAppButton')
-      .href = APP_URL;
-
-    if (
-      window.matchMedia('(display-mode: standalone)').matches ||
-      window.navigator.standalone === true
-    ) {
-      window.location.replace(APP_URL);
-    }
+    const VIEWER_URL = 'https://script.google.com/macros/s/AKfycbwQ81_BAcdPaeBqWhqqcQchRWUXlLzy2FztJmYTTkCudGQjMDRqhSLSN0BwMjsgA068/exec?page=viewer';
+    window.location.replace(VIEWER_URL);
   </script>
+
+  <noscript>
+    <a href="https://script.google.com/macros/s/AKfycbwQ81_BAcdPaeBqWhqqcQchRWUXlLzy2FztJmYTTkCudGQjMDRqhSLSN0BwMjsgA068/exec?page=viewer">納品実績を開く</a>
+  </noscript>
 </body>
 </html>
