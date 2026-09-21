@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>横浜営業所 通知モニター</title>
+<meta name="theme-color" content="#0f7548">
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Yu Gothic", Meiryo, sans-serif;
+    background: #eef2f0;
+    color: #1f2937;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+  .card {
+    width: min(680px, 100%);
+    background: #fff;
+    border-radius: 22px;
+    box-shadow: 0 12px 34px rgba(0,0,0,.10);
+    overflow: hidden;
+  }
+  .head {
+    background: #0f7548;
+    color: #fff;
+    padding: 24px 28px;
+  }
+  .head h1 { margin:0; font-size:28px; }
+  .head p { margin:6px 0 0; opacity:.9; font-weight:700; }
+  .body { padding: 26px 28px 30px; }
+  .status {
+    border: 2px solid #d7dedb;
+    border-radius: 16px;
+    padding: 18px;
+    margin-bottom: 18px;
+    background: #f8faf9;
+  }
+  .status strong { display:block; font-size:18px; margin-bottom:6px; }
+  .ok { color:#0f7548; }
+  .warn { color:#b45309; }
+  .err { color:#b91c1c; }
+  .buttons {
+    display:grid;
+    grid-template-columns: 1fr 1fr;
+    gap:12px;
+  }
+  button {
+    border:0;
+    border-radius:14px;
+    padding:16px 18px;
+    font-size:17px;
+    font-weight:900;
+    cursor:pointer;
+  }
+  .primary { background:#0f7548; color:#fff; }
+  .secondary { background:#eef2f0; color:#1f2937; }
+  .note {
+    margin-top:20px;
+    color:#667085;
+    line-height:1.65;
+    font-size:14px;
+  }
+  .last {
+    margin-top:18px;
+    border-top:1px solid #e5e7eb;
+    padding-top:16px;
+    color:#475569;
+    font-size:14px;
+    line-height:1.6;
+  }
+  @media (max-width:560px) {
+    .buttons { grid-template-columns:1fr; }
+    .head h1 { font-size:23px; }
+  }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="head">
+    <h1>横浜営業所 通知モニター</h1>
+    <p>出発・納品・運行終了をWindows通知</p>
+  </div>
+  <div class="body">
+    <div class="status">
+      <strong id="statusTitle">通知状態を確認しています</strong>
+      <div id="statusText">このページをEdgeで開いてください。</div>
+    </div>
+
+    <div class="buttons">
+      <button id="enableButton" class="primary">通知を有効にする</button>
+      <button id="testButton" class="secondary">通知テスト</button>
+    </div>
+
+    <div class="note">
+      通知を有効にした後は、このページをEdgeで開いたままにしてください。
+      最小化・背面でもWindows通知を出すための専用ページです。
+      納品実績本体は変更しません。
+    </div>
+
+    <div class="last" id="lastCheck">未接続</div>
+  </div>
+</div>
+
+<script>
+const GAS_URL = "https://script.google.com/macros/s/AKfycbwQ81_BAcdPaeBqWhqqcQchRWUXlLzy2FztJmYTTkCudGQjMDRqhSLSN0BwMjsgA068/exec";
+const POLL_MS = 15000;
+
+let initialized = false;
+let polling = false;
+let knownOperationKeys = new Set();
+let knownReportKeys = new Set();
+let knownCompletionKeys = new Set();
+let pollTimer = null;
+
+const statusTitle = document.getElementById('statusTitle');
+const statusText = document.getElementById('statusText');
+const lastCheck = document.getElementById('lastCheck');
+const enableButton = document.getElementById('enableButton');
+const testButton = document.getElementById('testButton');
+
+function setStatus(title, text, cls) {
+  statusTitle.textContent = title;
+  statusText.textContent = text;
+  statusTitle.className = cls || '';
+}
+
+function updatePermissionStatus() {
+  if (!('Notification' in window)) {
+    setStatus(
+      'Windows通知を利用できません',
+      'Edgeの通知機能を利用できるHTTPSページで開いてください。',
+      'err'
+    );
+    return;
+  }
+
+  if (Notification.permission === 'granted') {
+    setStatus(
+      '通知：ON',
+      'このページを開いたままにしておけば監視します。',
+      'ok'
+    );
+  } else if (Notification.permission === 'denied') {
+    setStatus(
+      '通知：ブロック',
+      'アドレスバー左のサイト設定から通知を「許可」にしてください。',
+      'err'
+    );
+  } else {
+    setStatus(
+      '通知：未許可',
+      '「通知を有効にする」を押してください。',
+      'warn'
+    );
+  }
+}
+
+async function enableNotifications() {
+  if (!('Notification' in window)) {
+    updatePermissionStatus();
+    return;
+  }
+
+  try {
+    const permission = await Notification.requestPermission();
+    updatePermissionStatus();
+
+    if (permission === 'granted') {
+      startPolling();
+      showWindowsNotification(
+        '納品実績｜通知モニター',
+        'Windows通知を有効にしました。'
+      );
+    }
+  } catch (e) {
+    setStatus(
+      '通知許可に失敗しました',
+      String(e && e.message ? e.message : e),
+      'err'
+    );
+  }
+}
+
+function showWindowsNotification(title, body, tag) {
+  if (
+    !('Notification' in window) ||
+    Notification.permission !== 'granted'
+  ) {
+    return;
+  }
+
+  try {
+    const n = new Notification(
+      title,
+      {
+        body: body || '',
+        tag: tag || ('mori-' + Date.now()),
+        renotify: true,
+        silent: false
+      }
+    );
+
+    n.onclick = function() {
+      try { window.focus(); } catch (e) {}
+      try { n.close(); } catch (e) {}
+    };
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+function notifyOperation(item) {
+  const body = [
+    [item.routeName, item.driver].filter(Boolean).join('　'),
+    item.time ? '時刻　' + item.time : ''
+  ].filter(Boolean).join('\n');
+
+  showWindowsNotification(
+    '納品実績｜出発',
+    body || '運行を開始しました',
+    item.key
+  );
+}
+
+function notifyReport(item) {
+  const body = [
+    [item.routeName, item.driver].filter(Boolean).join('　'),
+    [item.customer, item.destination].filter(Boolean).join(' ／ '),
+    [
+      item.time ? '時刻　' + item.time : '',
+      item.reportId ? '報告ID　' + item.reportId : ''
+    ].filter(Boolean).join('　')
+  ].filter(Boolean).join('\n');
+
+  showWindowsNotification(
+    '納品実績｜新着納品報告',
+    body || '新しい納品報告を受信しました',
+    item.key
+  );
+}
+
+function notifyCompletion(item) {
+  const body = [
+    [item.routeName, item.driver].filter(Boolean).join('　'),
+    item.time ? '終了時刻　' + item.time : ''
+  ].filter(Boolean).join('\n');
+
+  showWindowsNotification(
+    '納品実績｜' + (item.completionLabel || '運行終了'),
+    body || '運行を終了しました',
+    item.key
+  );
+}
+
+window.moriNotificationCallback = function(data) {
+  polling = false;
+
+  const operations = Array.isArray(data && data.operations) ? data.operations : [];
+  const reports = Array.isArray(data && data.reports) ? data.reports : [];
+  const completions = Array.isArray(data && data.completions) ? data.completions : [];
+
+  const nextOperationKeys = new Set(operations.map(x => String(x.key || '')));
+  const nextReportKeys = new Set(reports.map(x => String(x.key || '')));
+  const nextCompletionKeys = new Set(completions.map(x => String(x.key || '')));
+
+  if (!initialized) {
+    knownOperationKeys = nextOperationKeys;
+    knownReportKeys = nextReportKeys;
+    knownCompletionKeys = nextCompletionKeys;
+    initialized = true;
+  } else {
+    operations
+      .slice()
+      .sort((a,b) => Number(a.timestamp||0) - Number(b.timestamp||0))
+      .forEach(item => {
+        const key = String(item.key || '');
+        if (key && !knownOperationKeys.has(key)) notifyOperation(item);
+      });
+
+    reports
+      .slice()
+      .sort((a,b) => Number(a.timestamp||0) - Number(b.timestamp||0))
+      .forEach(item => {
+        const key = String(item.key || '');
+        if (key && !knownReportKeys.has(key)) notifyReport(item);
+      });
+
+    completions
+      .slice()
+      .sort((a,b) => Number(a.updatedAt||0) - Number(b.updatedAt||0))
+      .forEach(item => {
+        const key = String(item.key || '');
+        if (key && !knownCompletionKeys.has(key)) notifyCompletion(item);
+      });
+
+    knownOperationKeys = nextOperationKeys;
+    knownReportKeys = nextReportKeys;
+    knownCompletionKeys = nextCompletionKeys;
+  }
+
+  const now = new Date();
+  lastCheck.textContent =
+    '最終確認：' +
+    now.toLocaleTimeString('ja-JP', {hour:'2-digit', minute:'2-digit', second:'2-digit'}) +
+    '　監視中';
+
+  updatePermissionStatus();
+};
+
+function poll() {
+  if (polling) return;
+  polling = true;
+
+  const script = document.createElement('script');
+  script.src =
+    GAS_URL +
+    '?api=notificationState' +
+    '&callback=moriNotificationCallback' +
+    '&t=' + Date.now();
+
+  script.async = true;
+
+  script.onerror = function() {
+    polling = false;
+    lastCheck.textContent =
+      '接続エラー：' +
+      new Date().toLocaleTimeString('ja-JP');
+
+    try { script.remove(); } catch (e) {}
+  };
+
+  script.onload = function() {
+    try { script.remove(); } catch (e) {}
+  };
+
+  document.head.appendChild(script);
+
+  window.setTimeout(function() {
+    if (polling) polling = false;
+  }, 12000);
+}
+
+function startPolling() {
+  if (pollTimer) clearInterval(pollTimer);
+  poll();
+  pollTimer = setInterval(poll, POLL_MS);
+}
+
+enableButton.addEventListener('click', enableNotifications);
+
+testButton.addEventListener('click', function() {
+  if (Notification.permission !== 'granted') {
+    enableNotifications();
+    return;
+  }
+
+  showWindowsNotification(
+    '納品実績｜通知テスト',
+    'Windows通知は正常です。',
+    'mori-test-' + Date.now()
+  );
+});
+
+window.addEventListener('focus', poll);
+document.addEventListener('visibilitychange', function() {
+  if (!document.hidden) poll();
+});
+
+updatePermissionStatus();
+startPolling();
+</script>
+</body>
+</html>
