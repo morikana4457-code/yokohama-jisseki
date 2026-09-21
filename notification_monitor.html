@@ -122,7 +122,8 @@
     </button>
 
     <div class="small">
-      この通知モニターのタブは閉じずに、そのまま残してください。
+      この通知モニターのタブは閉じずに、そのまま残してください。<br>
+      重複通知防止：V3
     </div>
   </div>
 
@@ -153,44 +154,102 @@ const GAS_URL = 'https://script.google.com/macros/s/AKfycbwQ81_BAcdPaeBqWhqqcQch
 const VIEWER_URL = 'https://script.google.com/macros/s/AKfycbwQ81_BAcdPaeBqWhqqcQchRWUXlLzy2FztJmYTTkCudGQjMDRqhSLSN0BwMjsgA068/exec?page=viewer';
 const POLL_MS = 15000;
 
+/*
+ * V3 重複通知防止
+ *
+ * 1) reportId / runId を基準に「同じ出来事」を1件として扱う
+ * 2) 通知済みキーを localStorage に当日分だけ保存
+ * 3) 複数タブが開いていても Web Locks で通知判定を直列化
+ * 4) API取得結果から一時的に消えて再登場しても再通知しない
+ */
+const SEEN_STORAGE_KEY =
+  'mori-notification-monitor-seen-v3';
+
+const PROCESS_LOCK_NAME =
+  'mori-notification-monitor-process-v3';
+
 let initialized = false;
 let polling = false;
-let knownOperationKeys = new Set();
-let knownReportKeys = new Set();
-let knownCompletionKeys = new Set();
 let pollTimer = null;
 let viewerOpenedThisSession = false;
 
-const readyArea = document.getElementById('readyArea');
-const permissionArea = document.getElementById('permissionArea');
-const blockedArea = document.getElementById('blockedArea');
-const enableButton = document.getElementById('enableButton');
-const openViewerButton = document.getElementById('openViewerButton');
-const openViewerWithoutNotification =
-  document.getElementById('openViewerWithoutNotification');
-const lastCheck = document.getElementById('lastCheck');
+const readyArea =
+  document.getElementById('readyArea');
 
-function showArea(name) {
-  readyArea.style.display = name === 'ready' ? 'block' : 'none';
-  permissionArea.style.display = name === 'permission' ? 'block' : 'none';
-  blockedArea.style.display = name === 'blocked' ? 'block' : 'none';
+const permissionArea =
+  document.getElementById('permissionArea');
+
+const blockedArea =
+  document.getElementById('blockedArea');
+
+const enableButton =
+  document.getElementById('enableButton');
+
+const openViewerButton =
+  document.getElementById('openViewerButton');
+
+const openViewerWithoutNotification =
+  document.getElementById(
+    'openViewerWithoutNotification'
+  );
+
+const lastCheck =
+  document.getElementById('lastCheck');
+
+
+function todayKey() {
+  const d = new Date();
+
+  return (
+    d.getFullYear() +
+    '-' +
+    String(
+      d.getMonth() + 1
+    ).padStart(2, '0') +
+    '-' +
+    String(
+      d.getDate()
+    ).padStart(2, '0')
+  );
 }
 
+
+function showArea(name) {
+  readyArea.style.display =
+    name === 'ready'
+      ? 'block'
+      : 'none';
+
+  permissionArea.style.display =
+    name === 'permission'
+      ? 'block'
+      : 'none';
+
+  blockedArea.style.display =
+    name === 'blocked'
+      ? 'block'
+      : 'none';
+}
+
+
 function openViewer() {
+
   /*
    * 通知モニターはこのタブに残し、
    * 納品実績は別タブで開く。
-   * 監視タブを閉じるとWindows通知も止まるため。
    */
-  const w = window.open(
-    VIEWER_URL,
-    'mori_delivery_viewer'
-  );
+  const w =
+    window.open(
+      VIEWER_URL,
+      'mori_delivery_viewer'
+    );
 
   if (w) {
+
     try {
       w.focus();
     } catch (e) {}
+
     viewerOpenedThisSession = true;
     return true;
   }
@@ -198,206 +257,774 @@ function openViewer() {
   return false;
 }
 
-function showWindowsNotification(title, body, tag) {
+
+function semanticEventKey(
+  type,
+  item
+) {
+
+  const row =
+    item || {};
+
+  if (type === 'report') {
+
+    const reportId =
+      String(
+        row.reportId || ''
+      ).trim();
+
+    if (reportId) {
+      return (
+        'report|' +
+        reportId
+      );
+    }
+
+  }
+
+  if (type === 'operation') {
+
+    const runId =
+      String(
+        row.runId || ''
+      ).trim();
+
+    if (runId) {
+      return (
+        'operation|' +
+        runId
+      );
+    }
+
+  }
+
+  if (type === 'completion') {
+
+    const runId =
+      String(
+        row.runId || ''
+      ).trim();
+
+    if (runId) {
+      return (
+        'completion|' +
+        runId
+      );
+    }
+
+  }
+
+  const raw =
+    String(
+      row.key || ''
+    ).trim();
+
+  if (raw) {
+    return (
+      type +
+      '|' +
+      raw
+    );
+  }
+
+  return [
+    type,
+    String(
+      row.timestamp ||
+      row.updatedAt ||
+      0
+    ),
+    String(
+      row.routeName || ''
+    ),
+    String(
+      row.driver || ''
+    )
+  ].join('|');
+}
+
+
+function readSeenKeys() {
+
+  const date =
+    todayKey();
+
+  try {
+
+    const raw =
+      localStorage.getItem(
+        SEEN_STORAGE_KEY
+      );
+
+    if (!raw) {
+      return {
+        date: date,
+        keys: new Set()
+      };
+    }
+
+    const parsed =
+      JSON.parse(raw);
+
+    if (
+      !parsed ||
+      parsed.date !== date ||
+      !Array.isArray(parsed.keys)
+    ) {
+      return {
+        date: date,
+        keys: new Set()
+      };
+    }
+
+    return {
+      date: date,
+      keys:
+        new Set(
+          parsed.keys.map(
+            function(value) {
+              return String(
+                value || ''
+              );
+            }
+          )
+        )
+    };
+
+  } catch (error) {
+
+    return {
+      date: date,
+      keys: new Set()
+    };
+
+  }
+
+}
+
+
+function writeSeenKeys(
+  date,
+  keys
+) {
+
+  try {
+
+    /*
+     * 念のため上限を設ける。
+     * 1日分として十分な件数を保持する。
+     */
+    const values =
+      Array
+        .from(keys)
+        .filter(Boolean)
+        .slice(-2000);
+
+    localStorage.setItem(
+      SEEN_STORAGE_KEY,
+      JSON.stringify({
+        date: date,
+        keys: values
+      })
+    );
+
+  } catch (error) {
+    // localStorageが使えない環境でも通知監視は継続
+  }
+
+}
+
+
+function showWindowsNotification(
+  title,
+  body,
+  tag
+) {
+
   if (
     !('Notification' in window) ||
-    Notification.permission !== 'granted'
+    Notification.permission !==
+      'granted'
   ) {
     return;
   }
 
   try {
-    const n = new Notification(
-      title,
-      {
-        body: body || '',
-        tag: tag || ('mori-' + Date.now()),
-        renotify: true,
-        silent: false
-      }
-    );
 
-    n.onclick = function() {
-      try { window.focus(); } catch (e) {}
-      try { n.close(); } catch (e) {}
-    };
-  } catch (e) {
-    console.error(e);
+    const n =
+      new Notification(
+        title,
+        {
+          body:
+            body || '',
+
+          tag:
+            tag ||
+            (
+              'mori-' +
+              Date.now()
+            ),
+
+          /*
+           * 同じイベントはJS側で完全に除外する。
+           * OS側で同じtagを再鳴動させないため false。
+           */
+          renotify: false,
+
+          silent: false
+        }
+      );
+
+    n.onclick =
+      function() {
+
+        try {
+          window.focus();
+        } catch (e) {}
+
+        try {
+          n.close();
+        } catch (e) {}
+
+      };
+
+  } catch (error) {
+    console.error(error);
   }
+
 }
 
+
 function notifyOperation(item) {
+
   const body = [
-    [item.routeName, item.driver].filter(Boolean).join('　'),
-    item.time ? '時刻　' + item.time : ''
-  ].filter(Boolean).join('\n');
+    [
+      item.routeName,
+      item.driver
+    ]
+      .filter(Boolean)
+      .join('　'),
+
+    item.time
+      ? (
+          '時刻　' +
+          item.time
+        )
+      : ''
+  ]
+    .filter(Boolean)
+    .join('\n');
 
   showWindowsNotification(
     '納品実績｜出発',
-    body || '運行を開始しました',
-    item.key
+    body ||
+      '運行を開始しました',
+    semanticEventKey(
+      'operation',
+      item
+    )
   );
 }
 
+
 function notifyReport(item) {
+
   const body = [
-    [item.routeName, item.driver].filter(Boolean).join('　'),
-    [item.customer, item.destination].filter(Boolean).join(' ／ '),
     [
-      item.time ? '時刻　' + item.time : '',
-      item.reportId ? '報告ID　' + item.reportId : ''
-    ].filter(Boolean).join('　')
-  ].filter(Boolean).join('\n');
+      item.routeName,
+      item.driver
+    ]
+      .filter(Boolean)
+      .join('　'),
+
+    [
+      item.customer,
+      item.destination
+    ]
+      .filter(Boolean)
+      .join(' ／ '),
+
+    [
+      item.time
+        ? (
+            '時刻　' +
+            item.time
+          )
+        : '',
+
+      item.reportId
+        ? (
+            '報告ID　' +
+            item.reportId
+          )
+        : ''
+    ]
+      .filter(Boolean)
+      .join('　')
+  ]
+    .filter(Boolean)
+    .join('\n');
 
   showWindowsNotification(
     '納品実績｜新着納品報告',
-    body || '新しい納品報告を受信しました',
-    item.key
+    body ||
+      '新しい納品報告を受信しました',
+    semanticEventKey(
+      'report',
+      item
+    )
   );
 }
+
 
 function notifyCompletion(item) {
+
   const body = [
-    [item.routeName, item.driver].filter(Boolean).join('　'),
-    item.time ? '終了時刻　' + item.time : ''
-  ].filter(Boolean).join('\n');
+    [
+      item.routeName,
+      item.driver
+    ]
+      .filter(Boolean)
+      .join('　'),
+
+    item.time
+      ? (
+          '終了時刻　' +
+          item.time
+        )
+      : ''
+  ]
+    .filter(Boolean)
+    .join('\n');
 
   showWindowsNotification(
-    '納品実績｜' + (item.completionLabel || '運行終了'),
-    body || '運行を終了しました',
-    item.key
+    '納品実績｜' +
+      (
+        item.completionLabel ||
+        '運行終了'
+      ),
+    body ||
+      '運行を終了しました',
+    semanticEventKey(
+      'completion',
+      item
+    )
   );
 }
 
-window.moriNotificationCallback = function(data) {
-  polling = false;
 
-  const operations =
-    Array.isArray(data && data.operations)
-      ? data.operations
-      : [];
+function normalizeIncoming(
+  data
+) {
 
-  const reports =
-    Array.isArray(data && data.reports)
-      ? data.reports
-      : [];
-
-  const completions =
-    Array.isArray(data && data.completions)
-      ? data.completions
-      : [];
-
-  const nextOperationKeys =
-    new Set(
-      operations.map(
-        x => String(x.key || '')
+  return {
+    operations:
+      Array.isArray(
+        data &&
+        data.operations
       )
+        ? data.operations
+        : [],
+
+    reports:
+      Array.isArray(
+        data &&
+        data.reports
+      )
+        ? data.reports
+        : [],
+
+    completions:
+      Array.isArray(
+        data &&
+        data.completions
+      )
+        ? data.completions
+        : []
+  };
+}
+
+
+function collectAllKeys(
+  incoming
+) {
+
+  const keys = [];
+
+  incoming.operations
+    .forEach(
+      function(item) {
+        keys.push(
+          semanticEventKey(
+            'operation',
+            item
+          )
+        );
+      }
     );
 
-  const nextReportKeys =
-    new Set(
-      reports.map(
-        x => String(x.key || '')
-      )
+  incoming.reports
+    .forEach(
+      function(item) {
+        keys.push(
+          semanticEventKey(
+            'report',
+            item
+          )
+        );
+      }
     );
 
-  const nextCompletionKeys =
-    new Set(
-      completions.map(
-        x => String(x.key || '')
-      )
+  incoming.completions
+    .forEach(
+      function(item) {
+        keys.push(
+          semanticEventKey(
+            'completion',
+            item
+          )
+        );
+      }
     );
 
+  return keys.filter(Boolean);
+}
+
+
+function processIncomingData(
+  data
+) {
+
+  const incoming =
+    normalizeIncoming(data);
+
+  const stored =
+    readSeenKeys();
+
+  const seen =
+    stored.keys;
+
+  /*
+   * 初回だけは現在存在するレコードを基準値として登録。
+   * 過去分をまとめて鳴らさない。
+   */
   if (!initialized) {
-    knownOperationKeys = nextOperationKeys;
-    knownReportKeys = nextReportKeys;
-    knownCompletionKeys = nextCompletionKeys;
+
+    collectAllKeys(
+      incoming
+    )
+      .forEach(
+        function(key) {
+          seen.add(key);
+        }
+      );
+
+    writeSeenKeys(
+      stored.date,
+      seen
+    );
+
     initialized = true;
-  } else {
-    operations
-      .slice()
-      .sort(
-        (a, b) =>
-          Number(a.timestamp || 0) -
-          Number(b.timestamp || 0)
-      )
-      .forEach(item => {
-        const key =
-          String(item.key || '');
 
-        if (
-          key &&
-          !knownOperationKeys.has(key)
-        ) {
-          notifyOperation(item);
-        }
-      });
+    updateLastCheck(
+      '監視中'
+    );
 
-    reports
-      .slice()
-      .sort(
-        (a, b) =>
-          Number(a.timestamp || 0) -
-          Number(b.timestamp || 0)
-      )
-      .forEach(item => {
-        const key =
-          String(item.key || '');
-
-        if (
-          key &&
-          !knownReportKeys.has(key)
-        ) {
-          notifyReport(item);
-        }
-      });
-
-    completions
-      .slice()
-      .sort(
-        (a, b) =>
-          Number(a.updatedAt || 0) -
-          Number(b.updatedAt || 0)
-      )
-      .forEach(item => {
-        const key =
-          String(item.key || '');
-
-        if (
-          key &&
-          !knownCompletionKeys.has(key)
-        ) {
-          notifyCompletion(item);
-        }
-      });
-
-    knownOperationKeys = nextOperationKeys;
-    knownReportKeys = nextReportKeys;
-    knownCompletionKeys = nextCompletionKeys;
+    return;
   }
 
-  const now = new Date();
+
+  const notifyQueue = [];
+
+
+  incoming.operations
+    .slice()
+    .sort(
+      function(a, b) {
+        return (
+          Number(
+            a.timestamp || 0
+          ) -
+          Number(
+            b.timestamp || 0
+          )
+        );
+      }
+    )
+    .forEach(
+      function(item) {
+
+        const key =
+          semanticEventKey(
+            'operation',
+            item
+          );
+
+        if (
+          key &&
+          !seen.has(key)
+        ) {
+          seen.add(key);
+
+          notifyQueue.push({
+            type:
+              'operation',
+
+            item:
+              item
+          });
+        }
+
+      }
+    );
+
+
+  incoming.reports
+    .slice()
+    .sort(
+      function(a, b) {
+        return (
+          Number(
+            a.timestamp || 0
+          ) -
+          Number(
+            b.timestamp || 0
+          )
+        );
+      }
+    )
+    .forEach(
+      function(item) {
+
+        const key =
+          semanticEventKey(
+            'report',
+            item
+          );
+
+        if (
+          key &&
+          !seen.has(key)
+        ) {
+          seen.add(key);
+
+          notifyQueue.push({
+            type:
+              'report',
+
+            item:
+              item
+          });
+        }
+
+      }
+    );
+
+
+  incoming.completions
+    .slice()
+    .sort(
+      function(a, b) {
+        return (
+          Number(
+            a.updatedAt || 0
+          ) -
+          Number(
+            b.updatedAt || 0
+          )
+        );
+      }
+    )
+    .forEach(
+      function(item) {
+
+        const key =
+          semanticEventKey(
+            'completion',
+            item
+          );
+
+        if (
+          key &&
+          !seen.has(key)
+        ) {
+          seen.add(key);
+
+          notifyQueue.push({
+            type:
+              'completion',
+
+            item:
+              item
+          });
+        }
+
+      }
+    );
+
+
+  /*
+   * 先に「通知済み」を保存する。
+   * 複数タブでも、次のタブは同じキーを通知しない。
+   */
+  writeSeenKeys(
+    stored.date,
+    seen
+  );
+
+
+  notifyQueue
+    .forEach(
+      function(entry) {
+
+        if (
+          entry.type ===
+          'operation'
+        ) {
+          notifyOperation(
+            entry.item
+          );
+
+        } else if (
+          entry.type ===
+          'report'
+        ) {
+          notifyReport(
+            entry.item
+          );
+
+        } else if (
+          entry.type ===
+          'completion'
+        ) {
+          notifyCompletion(
+            entry.item
+          );
+        }
+
+      }
+    );
+
+
+  updateLastCheck(
+    notifyQueue.length > 0
+      ? (
+          '監視中・新着 ' +
+          notifyQueue.length +
+          '件'
+        )
+      : '監視中'
+  );
+}
+
+
+async function processWithLock(
+  data
+) {
+
+  /*
+   * Edge / ChromeではWeb Locksを使用。
+   * 同じnotification_monitor.htmlを複数タブで開いても
+   * 通知判定を1タブずつ処理する。
+   */
+  if (
+    navigator.locks &&
+    typeof navigator.locks.request ===
+      'function'
+  ) {
+
+    try {
+
+      await navigator.locks.request(
+        PROCESS_LOCK_NAME,
+        {
+          mode:
+            'exclusive'
+        },
+        async function() {
+          processIncomingData(
+            data
+          );
+        }
+      );
+
+      return;
+
+    } catch (error) {
+      console.error(
+        'notification lock error',
+        error
+      );
+    }
+
+  }
+
+  /*
+   * Web Locks非対応ブラウザは
+   * localStorageの通知済みキーだけで重複を抑える。
+   */
+  processIncomingData(
+    data
+  );
+}
+
+
+window.moriNotificationCallback =
+  function(data) {
+
+    polling = false;
+
+    processWithLock(
+      data
+    );
+
+  };
+
+
+function updateLastCheck(
+  suffix
+) {
+
+  if (!lastCheck) {
+    return;
+  }
+
+  const now =
+    new Date();
 
   lastCheck.textContent =
     '最終確認：' +
     now.toLocaleTimeString(
       'ja-JP',
       {
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit'
+        hour:
+          '2-digit',
+        minute:
+          '2-digit',
+        second:
+          '2-digit'
       }
     ) +
-    '　監視中';
-};
+    '　' +
+    (
+      suffix ||
+      '監視中'
+    );
+}
+
 
 function poll() {
-  if (polling) return;
+
+  if (polling) {
+    return;
+  }
 
   polling = true;
 
   const script =
-    document.createElement('script');
+    document.createElement(
+      'script'
+    );
 
   script.src =
     GAS_URL +
@@ -408,25 +1035,34 @@ function poll() {
 
   script.async = true;
 
-  script.onerror = function() {
-    polling = false;
+  script.onerror =
+    function() {
 
-    if (lastCheck) {
-      lastCheck.textContent =
-        '接続エラー：' +
-        new Date().toLocaleTimeString('ja-JP');
-    }
+      polling = false;
 
-    try {
-      script.remove();
-    } catch (e) {}
-  };
+      if (lastCheck) {
+        lastCheck.textContent =
+          '接続エラー：' +
+          new Date()
+            .toLocaleTimeString(
+              'ja-JP'
+            );
+      }
 
-  script.onload = function() {
-    try {
-      script.remove();
-    } catch (e) {}
-  };
+      try {
+        script.remove();
+      } catch (e) {}
+
+    };
+
+  script.onload =
+    function() {
+
+      try {
+        script.remove();
+      } catch (e) {}
+
+    };
 
   document.head.appendChild(
     script
@@ -434,15 +1070,19 @@ function poll() {
 
   window.setTimeout(
     function() {
+
       if (polling) {
         polling = false;
       }
+
     },
     12000
   );
 }
 
+
 function startPolling() {
+
   if (pollTimer) {
     clearInterval(
       pollTimer
@@ -458,10 +1098,12 @@ function startPolling() {
     );
 }
 
+
 async function enableNotificationsAndOpenViewer() {
+
   /*
-   * ポップアップブロックを避けるため、
-   * クリック直後に先にViewerタブを作っておく。
+   * ポップアップブロック回避のため、
+   * クリック直後にViewerタブを先に作る。
    */
   const viewerWindow =
     window.open(
@@ -470,14 +1112,24 @@ async function enableNotificationsAndOpenViewer() {
     );
 
   try {
-    const permission =
-      await Notification.requestPermission();
 
-    if (permission === 'granted') {
-      showArea('ready');
+    const permission =
+      await Notification
+        .requestPermission();
+
+    if (
+      permission ===
+      'granted'
+    ) {
+
+      showArea(
+        'ready'
+      );
+
       startPolling();
 
       if (viewerWindow) {
+
         viewerWindow.location.href =
           VIEWER_URL;
 
@@ -485,14 +1137,19 @@ async function enableNotificationsAndOpenViewer() {
           viewerWindow.focus();
         } catch (e) {}
 
-        viewerOpenedThisSession = true;
+        viewerOpenedThisSession =
+          true;
+
       } else {
+
         openViewer();
+
       }
 
       showWindowsNotification(
         '納品実績｜通知モニター',
-        'Windows通知を有効にしました。'
+        'Windows通知を有効にしました。',
+        'mori-monitor-enabled'
       );
 
       return;
@@ -504,43 +1161,73 @@ async function enableNotificationsAndOpenViewer() {
       } catch (e) {}
     }
 
-    if (permission === 'denied') {
-      showArea('blocked');
+    if (
+      permission ===
+      'denied'
+    ) {
+      showArea(
+        'blocked'
+      );
+
     } else {
-      showArea('permission');
+
+      showArea(
+        'permission'
+      );
+
     }
-  } catch (e) {
+
+  } catch (error) {
+
     if (viewerWindow) {
       try {
         viewerWindow.close();
-      } catch (error) {}
+      } catch (e) {}
     }
 
-    showArea('permission');
+    showArea(
+      'permission'
+    );
   }
 }
 
+
 function initialize() {
-  if (!('Notification' in window)) {
-    showArea('blocked');
+
+  if (
+    !('Notification' in window)
+  ) {
+    showArea(
+      'blocked'
+    );
     return;
   }
 
-  if (Notification.permission === 'granted') {
-    showArea('ready');
+  if (
+    Notification.permission ===
+    'granted'
+  ) {
+
+    showArea(
+      'ready'
+    );
+
     startPolling();
 
     /*
-     * 既に通知許可済みの場合は、
-     * 納品実績を自動で別タブに開く。
-     * Edge側で自動ポップアップを止められた場合は
-     * 「納品実績を開く」ボタンだけ残る。
+     * 既に通知許可済みなら納品実績を開く。
+     * Edgeが自動ポップアップを止めた場合は
+     * 「納品実績を開く」ボタンで開く。
      */
     window.setTimeout(
       function() {
-        if (!viewerOpenedThisSession) {
+
+        if (
+          !viewerOpenedThisSession
+        ) {
           openViewer();
         }
+
       },
       300
     );
@@ -548,51 +1235,71 @@ function initialize() {
     return;
   }
 
-  if (Notification.permission === 'denied') {
-    showArea('blocked');
+  if (
+    Notification.permission ===
+    'denied'
+  ) {
+    showArea(
+      'blocked'
+    );
     return;
   }
 
-  showArea('permission');
+  showArea(
+    'permission'
+  );
 }
+
 
 enableButton.addEventListener(
   'click',
   enableNotificationsAndOpenViewer
 );
 
+
 openViewerButton.addEventListener(
   'click',
   openViewer
 );
 
-openViewerWithoutNotification.addEventListener(
-  'click',
-  openViewer
-);
+
+openViewerWithoutNotification
+  .addEventListener(
+    'click',
+    openViewer
+  );
+
 
 window.addEventListener(
   'focus',
   function() {
+
     if (
-      Notification.permission === 'granted'
+      Notification.permission ===
+      'granted'
     ) {
       poll();
     }
+
   }
 );
+
 
 document.addEventListener(
   'visibilitychange',
   function() {
+
     if (
       !document.hidden &&
-      Notification.permission === 'granted'
+      Notification.permission ===
+        'granted'
     ) {
       poll();
     }
+
   }
 );
+
 
 initialize();
 </script>
