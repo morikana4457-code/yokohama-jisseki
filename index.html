@@ -2,26 +2,51 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>納品実績</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0f7548">
+  <title>横浜営業所 通知モニター</title>
 
-  <link rel="icon" type="image/png" href="yokohama_jisseki_icon.png">
-  <link rel="apple-touch-icon" href="yokohama_jisseki_icon.png">
+  <meta http-equiv="refresh" content="0; url=./notification_monitor.html">
 
-  <meta name="theme-color" content="#0e2440">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="apple-mobile-web-app-title" content="納品実績">
+  <script>
+    window.location.replace('./notification_monitor.html');
+  </script>
+
+  <style>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family:
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        "Yu Gothic",
+        Meiryo,
+        sans-serif;
+      background: #eef2f0;
+      color: #1f2937;
+    }
+
+    .message {
+      padding: 24px;
+      text-align: center;
+      font-weight: 700;
+    }
+
+    a {
+      color: #0f7548;
+    }
+  </style>
 </head>
 
 <body>
-  <script>
-    const VIEWER_URL = 'https://script.google.com/macros/s/AKfycbwQ81_BAcdPaeBqWhqqcQchRWUXlLzy2FztJmYTTkCudGQjMDRqhSLSN0BwMjsgA068/exec?page=viewer';
-    window.location.replace(VIEWER_URL);
-  </script>
-
-  <noscript>
-    <a href="https://script.google.com/macros/s/AKfycbwQ81_BAcdPaeBqWhqqcQchRWUXlLzy2FztJmYTTkCudGQjMDRqhSLSN0BwMjsgA068/exec?page=viewer">納品実績を開く</a>
-  </noscript>
+  <div class="message">
+    Windows通知モニターを開いています…<br><br>
+    自動で切り替わらない場合は
+    <a href="./notification_monitor.html">こちらをクリック</a>
+  </div>
 </body>
 </html>
