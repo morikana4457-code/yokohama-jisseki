@@ -123,7 +123,7 @@
 
     <div class="small">
       この通知モニターのタブは閉じずに、そのまま残してください。<br>
-      重複通知防止＋Viewer連携：V4
+      Windows通知専用・重複防止：V5
     </div>
   </div>
 
@@ -499,108 +499,7 @@ function showWindowsNotification(
 }
 
 
-function sendViewerForegroundNotice(
-  eventType,
-  item
-) {
-
-  if (
-    !viewerWindowRef ||
-    viewerWindowRef.closed
-  ) {
-    return;
-  }
-
-  const row =
-    item || {};
-
-  let message =
-    '新しい通知があります';
-
-  if (
-    eventType ===
-    'operation'
-  ) {
-
-    const detail =
-      [
-        row.routeName,
-        row.driver
-      ]
-        .filter(Boolean)
-        .join('　');
-
-    message =
-      detail
-        ? (
-            '出発：' +
-            detail
-          )
-        : '出発を反映しました';
-
-  } else if (
-    eventType ===
-    'report'
-  ) {
-
-    message =
-      '新しい納品報告を反映しました';
-
-  } else if (
-    eventType ===
-    'completion'
-  ) {
-
-    const detail =
-      [
-        row.routeName,
-        row.driver
-      ]
-        .filter(Boolean)
-        .join('　');
-
-    message =
-      (
-        row.completionLabel ||
-        '終了報告'
-      ) +
-      (
-        detail
-          ? (
-              '：' +
-              detail
-            )
-          : ''
-      );
-  }
-
-  try {
-
-    viewerWindowRef.postMessage(
-      {
-        source:
-          'mori-notification-monitor',
-
-        action:
-          'foreground-notice',
-
-        eventType:
-          eventType,
-
-        message:
-          message
-      },
-      '*'
-    );
-
-  } catch (error) {
-    console.error(
-      'Viewer foreground notice failed',
-      error
-    );
-  }
-}
-
+/* V5: Viewer前面通知への転送は廃止。Windows通知のみ担当。 */
 
 function notifyOperation(item) {
 
@@ -632,10 +531,6 @@ function notifyOperation(item) {
     )
   );
 
-  sendViewerForegroundNotice(
-    'operation',
-    item
-  );
 }
 
 
@@ -687,10 +582,6 @@ function notifyReport(item) {
     )
   );
 
-  sendViewerForegroundNotice(
-    'report',
-    item
-  );
 }
 
 
@@ -728,10 +619,6 @@ function notifyCompletion(item) {
     )
   );
 
-  sendViewerForegroundNotice(
-    'completion',
-    item
-  );
 }
 
 
