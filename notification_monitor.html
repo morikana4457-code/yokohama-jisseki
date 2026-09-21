@@ -123,7 +123,7 @@
 
     <div class="small">
       この通知モニターのタブは閉じずに、そのまま残してください。<br>
-      Windows通知専用・重複防止：V5
+      Windows通知専用・無音：V6
     </div>
   </div>
 
@@ -475,7 +475,12 @@ function showWindowsNotification(
            */
           renotify: false,
 
-          silent: false
+          /*
+           * FIX62:
+           * Windows通知は表示のみ。
+           * 通知音はViewer前面時の1回に統一する。
+           */
+          silent: true
         }
       );
 
