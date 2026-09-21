@@ -1,52 +1,475 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#0f7548">
-  <title>横浜営業所 通知モニター</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0f7548">
+<title>横浜営業所 納品実績</title>
 
-  <meta http-equiv="refresh" content="0; url=./notification_monitor.html">
+<style>
+html, body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #eef2f0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans JP", sans-serif;
+}
 
-  <script>
-    window.location.replace('./notification_monitor.html');
-  </script>
+#appFrame {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #fff;
+}
 
-  <style>
-    body {
-      margin: 0;
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-family:
-        -apple-system,
-        BlinkMacSystemFont,
-        "Segoe UI",
-        "Yu Gothic",
-        Meiryo,
-        sans-serif;
-      background: #eef2f0;
-      color: #1f2937;
-    }
+#notifyGate {
+  position: fixed;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  z-index: 99999;
+  width: min(92vw, 440px);
+  padding: 14px;
+  border-radius: 14px;
+  background: rgba(255,255,255,.98);
+  box-shadow: 0 8px 28px rgba(0,0,0,.18);
+  display: none;
+}
 
-    .message {
-      padding: 24px;
-      text-align: center;
-      font-weight: 700;
-    }
+#notifyGate.show {
+  display: block;
+}
 
-    a {
-      color: #0f7548;
-    }
-  </style>
+#notifyGateTitle {
+  font-size: 15px;
+  font-weight: 900;
+  color: #1f2937;
+  margin-bottom: 8px;
+}
+
+#notifyGateText {
+  font-size: 13px;
+  line-height: 1.55;
+  color: #667085;
+}
+
+#notifyEnableButton {
+  width: 100%;
+  min-height: 48px;
+  margin-top: 10px;
+  border: 0;
+  border-radius: 10px;
+  background: #0f7548;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+#notifyStatus {
+  position: fixed;
+  right: 10px;
+  bottom: 10px;
+  z-index: 99998;
+  padding: 5px 8px;
+  border-radius: 8px;
+  background: rgba(17,24,39,.72);
+  color: #fff;
+  font-size: 11px;
+  pointer-events: none;
+  opacity: .78;
+}
+</style>
 </head>
 
 <body>
-  <div class="message">
-    Windows通知モニターを開いています…<br><br>
-    自動で切り替わらない場合は
-    <a href="./notification_monitor.html">こちらをクリック</a>
+
+<iframe
+  id="appFrame"
+  src="https://script.google.com/macros/s/AKfycbwQ81_BAcdPaeBqWhqqcQchRWUXlLzy2FztJmYTTkCudGQjMDRqhSLSN0BwMjsgA068/exec?page=login"
+  allow="clipboard-read; clipboard-write; camera">
+</iframe>
+
+<div id="notifyGate">
+  <div id="notifyGateTitle">Windows通知を有効にします</div>
+  <div id="notifyGateText">
+    出発・納品報告・終了報告をWindows通知で受け取るため、
+    このPCで通知を許可してください。
   </div>
+  <button id="notifyEnableButton" type="button">Windows通知を有効にする</button>
+</div>
+
+<div id="notifyStatus">通知：確認中</div>
+
+<script>
+'use strict';
+
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbwQ81_BAcdPaeBqWhqqcQchRWUXlLzy2FztJmYTTkCudGQjMDRqhSLSN0BwMjsgA068/exec';
+const POLL_MS = 5000;
+
+const SEEN_KEY = 'mori-yokohama-windows-notify-seen-v7';
+const DATE_KEY = 'mori-yokohama-windows-notify-date-v7';
+
+let polling = false;
+let initialized = false;
+let pollTimer = null;
+
+function todayKey() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function readSeen() {
+  try {
+    const date = todayKey();
+    const storedDate = localStorage.getItem(DATE_KEY) || '';
+    if (storedDate !== date) {
+      localStorage.setItem(DATE_KEY, date);
+      localStorage.removeItem(SEEN_KEY);
+      return new Set();
+    }
+    const raw = JSON.parse(localStorage.getItem(SEEN_KEY) || '[]');
+    return new Set(Array.isArray(raw) ? raw : []);
+  } catch (e) {
+    return new Set();
+  }
+}
+
+function writeSeen(seen) {
+  try {
+    localStorage.setItem(DATE_KEY, todayKey());
+    localStorage.setItem(
+      SEEN_KEY,
+      JSON.stringify(Array.from(seen).slice(-2000))
+    );
+  } catch (e) {}
+}
+
+function semanticKey(type, item) {
+  item = item || {};
+
+  if (type === 'operation') {
+    return [
+      'operation',
+      item.runId || '',
+      item.timestamp || '',
+      item.routeName || '',
+      item.driver || ''
+    ].join('|');
+  }
+
+  if (type === 'report') {
+    return [
+      'report',
+      item.reportId || '',
+      item.timestamp || '',
+      item.routeName || '',
+      item.driver || ''
+    ].join('|');
+  }
+
+  return [
+    'completion',
+    item.runId || '',
+    item.updatedAt || item.timestamp || '',
+    item.routeName || '',
+    item.driver || ''
+  ].join('|');
+}
+
+function showWindowsNotification(title, body, tag) {
+  if (!('Notification' in window)) return;
+  if (Notification.permission !== 'granted') return;
+
+  try {
+    const n = new Notification(title, {
+      body: body || '',
+      tag: tag || ('mori-' + Date.now()),
+      renotify: false,
+
+      // 音はViewer側の1回だけに統一。
+      // Windows通知は表示だけにして二重音を防ぐ。
+      silent: true
+    });
+
+    n.onclick = function() {
+      try { window.focus(); } catch (e) {}
+      try { n.close(); } catch (e) {}
+    };
+  } catch (e) {
+    console.error('Windows notification error', e);
+  }
+}
+
+function notifyOperation(item) {
+  const details = [item.routeName, item.driver].filter(Boolean).join('　');
+  const body = [
+    details,
+    item.time ? ('時刻　' + item.time) : ''
+  ].filter(Boolean).join('\n');
+
+  showWindowsNotification(
+    '納品実績｜出発',
+    body || '運行を開始しました',
+    semanticKey('operation', item)
+  );
+}
+
+function notifyReport(item) {
+  const op = [item.routeName, item.driver].filter(Boolean).join('　');
+  const place = [item.customer, item.destination].filter(Boolean).join(' ／ ');
+  const meta = [
+    item.time ? ('時刻　' + item.time) : '',
+    item.reportId ? ('報告ID　' + item.reportId) : ''
+  ].filter(Boolean).join('　');
+
+  showWindowsNotification(
+    '納品実績｜新着納品報告',
+    [op, place, meta].filter(Boolean).join('\n') || '新しい納品報告を受信しました',
+    semanticKey('report', item)
+  );
+}
+
+function notifyCompletion(item) {
+  const op = [item.routeName, item.driver].filter(Boolean).join('　');
+  const body = [
+    op,
+    item.time ? ('終了時刻　' + item.time) : ''
+  ].filter(Boolean).join('\n');
+
+  showWindowsNotification(
+    '納品実績｜' + (item.completionLabel || '終了報告'),
+    body || '運行を終了しました',
+    semanticKey('completion', item)
+  );
+}
+
+function normalize(data) {
+  return {
+    operations: Array.isArray(data && data.operations) ? data.operations : [],
+    reports: Array.isArray(data && data.reports) ? data.reports : [],
+    completions: Array.isArray(data && data.completions) ? data.completions : []
+  };
+}
+
+function processData(data) {
+  const status = document.getElementById('notifyStatus');
+
+  if (!data || data.success !== true) {
+    status.textContent = '通知：通信エラー';
+    return;
+  }
+
+  const incoming = normalize(data);
+  const seen = readSeen();
+
+  if (!initialized) {
+    [...incoming.operations.map(x => semanticKey('operation', x)),
+     ...incoming.reports.map(x => semanticKey('report', x)),
+     ...incoming.completions.map(x => semanticKey('completion', x))]
+      .filter(Boolean)
+      .forEach(k => seen.add(k));
+
+    writeSeen(seen);
+    initialized = true;
+    status.textContent = '通知：監視中';
+    return;
+  }
+
+  const queue = [];
+
+  incoming.operations.forEach(item => {
+    const key = semanticKey('operation', item);
+    if (key && !seen.has(key)) {
+      seen.add(key);
+      queue.push({ type: 'operation', item });
+    }
+  });
+
+  incoming.reports.forEach(item => {
+    const key = semanticKey('report', item);
+    if (key && !seen.has(key)) {
+      seen.add(key);
+      queue.push({ type: 'report', item });
+    }
+  });
+
+  incoming.completions.forEach(item => {
+    const key = semanticKey('completion', item);
+    if (key && !seen.has(key)) {
+      seen.add(key);
+      queue.push({ type: 'completion', item });
+    }
+  });
+
+  writeSeen(seen);
+
+  queue.forEach(entry => {
+    if (entry.type === 'operation') notifyOperation(entry.item);
+    if (entry.type === 'report') notifyReport(entry.item);
+    if (entry.type === 'completion') notifyCompletion(entry.item);
+  });
+
+  status.textContent = queue.length
+    ? ('通知：新着 ' + queue.length + '件')
+    : '通知：監視中';
+}
+
+window.moriNotificationCallback = function(data) {
+  polling = false;
+  processData(data);
+};
+
+function poll() {
+  if (polling) return;
+  polling = true;
+
+  const old = document.getElementById('moriNotificationJsonp');
+  if (old) old.remove();
+
+  const script = document.createElement('script');
+  script.id = 'moriNotificationJsonp';
+  script.src =
+    GAS_URL +
+    '?api=notificationState' +
+    '&callback=moriNotificationCallback' +
+    '&_=' + Date.now();
+
+  script.onerror = function() {
+    polling = false;
+    document.getElementById('notifyStatus').textContent = '通知：接続エラー';
+  };
+
+  document.head.appendChild(script);
+
+  window.setTimeout(function() {
+    if (polling) polling = false;
+  }, 10000);
+}
+
+function startPolling() {
+  if (pollTimer) clearInterval(pollTimer);
+  poll();
+  pollTimer = setInterval(poll, POLL_MS);
+}
+
+function updatePermissionUi() {
+  const gate = document.getElementById('notifyGate');
+  const status = document.getElementById('notifyStatus');
+
+  if (!('Notification' in window)) {
+    gate.classList.remove('show');
+    status.textContent = '通知：非対応';
+    return;
+  }
+
+  if (Notification.permission === 'granted') {
+    gate.classList.remove('show');
+    status.textContent = '通知：監視中';
+    startPolling();
+    return;
+  }
+
+  if (Notification.permission === 'denied') {
+    gate.classList.add('show');
+    document.getElementById('notifyGateTitle').textContent =
+      'Windows通知がブロックされています';
+    document.getElementById('notifyGateText').textContent =
+      'ブラウザのサイト設定で、このGitHub Pagesサイトの通知を「許可」にしてください。';
+    document.getElementById('notifyEnableButton').style.display = 'none';
+    status.textContent = '通知：ブロック';
+    return;
+  }
+
+  gate.classList.add('show');
+  status.textContent = '通知：許可待ち';
+}
+
+document.getElementById('notifyEnableButton').addEventListener('click', async function() {
+  try {
+    const permission = await Notification.requestPermission();
+    updatePermissionUi();
+
+    if (permission === 'granted') {
+      showWindowsNotification(
+        '納品実績｜通知テスト',
+        'Windows通知を有効にしました。',
+        'mori-yokohama-notification-test'
+      );
+    }
+  } catch (e) {
+    console.error(e);
+  }
+});
+
+document.addEventListener('visibilitychange', function() {
+  if (!document.hidden && Notification.permission === 'granted') {
+    poll();
+  }
+});
+
+updatePermissionUi();
+
+
+/* =========================================================
+   V8: Apps Script画面遷移をGitHub親画面内に固定
+   =========================================================
+   AuthLogin / Operation / 納品報告からの画面遷移要求を受け取り、
+   親のGitHub Pagesは残したまま appFrame.src だけを切り替える。
+   これによりWindows通知監視がログイン後も停止しない。
+   ========================================================= */
+window.addEventListener('message', function(event) {
+  const data = event && event.data ? event.data : null;
+
+  if (
+    !data ||
+    data.type !== 'MORI_APP_NAVIGATE_REQUEST'
+  ) {
+    return;
+  }
+
+  const url = String(data.url || '').trim();
+  const navId = String(data.navId || '');
+
+  /* この横浜Apps Script以外への遷移要求は受け付けない */
+  if (
+    !url ||
+    !url.startsWith(GAS_URL)
+  ) {
+    return;
+  }
+
+  try {
+    if (
+      event.source &&
+      typeof event.source.postMessage === 'function'
+    ) {
+      event.source.postMessage(
+        {
+          type: 'MORI_APP_NAVIGATE_ACK',
+          navId: navId
+        },
+        '*'
+      );
+    }
+  } catch (e) {}
+
+  const frame =
+    document.getElementById('appFrame');
+
+  if (!frame) {
+    return;
+  }
+
+  frame.src = url;
+});
+
+</script>
 </body>
 </html>
