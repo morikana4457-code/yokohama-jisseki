@@ -123,7 +123,7 @@
 
     <div class="small">
       この通知モニターのタブは閉じずに、そのまま残してください。<br>
-      重複通知防止：V3
+      重複通知防止＋Viewer連携：V4
     </div>
   </div>
 
@@ -172,6 +172,7 @@ let initialized = false;
 let polling = false;
 let pollTimer = null;
 let viewerOpenedThisSession = false;
+let viewerWindowRef = null;
 
 const readyArea =
   document.getElementById('readyArea');
@@ -245,6 +246,9 @@ function openViewer() {
     );
 
   if (w) {
+
+    viewerWindowRef =
+      w;
 
     try {
       w.focus();
@@ -495,6 +499,109 @@ function showWindowsNotification(
 }
 
 
+function sendViewerForegroundNotice(
+  eventType,
+  item
+) {
+
+  if (
+    !viewerWindowRef ||
+    viewerWindowRef.closed
+  ) {
+    return;
+  }
+
+  const row =
+    item || {};
+
+  let message =
+    '新しい通知があります';
+
+  if (
+    eventType ===
+    'operation'
+  ) {
+
+    const detail =
+      [
+        row.routeName,
+        row.driver
+      ]
+        .filter(Boolean)
+        .join('　');
+
+    message =
+      detail
+        ? (
+            '出発：' +
+            detail
+          )
+        : '出発を反映しました';
+
+  } else if (
+    eventType ===
+    'report'
+  ) {
+
+    message =
+      '新しい納品報告を反映しました';
+
+  } else if (
+    eventType ===
+    'completion'
+  ) {
+
+    const detail =
+      [
+        row.routeName,
+        row.driver
+      ]
+        .filter(Boolean)
+        .join('　');
+
+    message =
+      (
+        row.completionLabel ||
+        '終了報告'
+      ) +
+      (
+        detail
+          ? (
+              '：' +
+              detail
+            )
+          : ''
+      );
+  }
+
+  try {
+
+    viewerWindowRef.postMessage(
+      {
+        source:
+          'mori-notification-monitor',
+
+        action:
+          'foreground-notice',
+
+        eventType:
+          eventType,
+
+        message:
+          message
+      },
+      '*'
+    );
+
+  } catch (error) {
+    console.error(
+      'Viewer foreground notice failed',
+      error
+    );
+  }
+}
+
+
 function notifyOperation(item) {
 
   const body = [
@@ -523,6 +630,11 @@ function notifyOperation(item) {
       'operation',
       item
     )
+  );
+
+  sendViewerForegroundNotice(
+    'operation',
+    item
   );
 }
 
@@ -574,6 +686,11 @@ function notifyReport(item) {
       item
     )
   );
+
+  sendViewerForegroundNotice(
+    'report',
+    item
+  );
 }
 
 
@@ -609,6 +726,11 @@ function notifyCompletion(item) {
       'completion',
       item
     )
+  );
+
+  sendViewerForegroundNotice(
+    'completion',
+    item
   );
 }
 
@@ -1129,6 +1251,9 @@ async function enableNotificationsAndOpenViewer() {
       startPolling();
 
       if (viewerWindow) {
+
+        viewerWindowRef =
+          viewerWindow;
 
         viewerWindow.location.href =
           VIEWER_URL;
