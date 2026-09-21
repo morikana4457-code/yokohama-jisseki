@@ -2,23 +2,28 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#0f7548">
-  <title>横浜営業所 通知モニター</title>
 
-  <meta http-equiv="refresh" content="0; url=./notification_monitor.html">
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+  >
 
-  <script>
-    window.location.replace('./notification_monitor.html');
-  </script>
+  <meta name="theme-color" content="#173b67">
+
+  <title>横浜営業所 納品実績</title>
 
   <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
     body {
       margin: 0;
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #f5f7fa;
       font-family:
         -apple-system,
         BlinkMacSystemFont,
@@ -26,27 +31,177 @@
         "Yu Gothic",
         Meiryo,
         sans-serif;
-      background: #eef2f0;
-      color: #1f2937;
+    }
+
+    #appFrame {
+      display: block;
+      width: 100%;
+      height: 100%;
+      height: 100dvh;
+      border: 0;
+      margin: 0;
+      padding: 0;
+      background: #ffffff;
+    }
+
+    #loading {
+      position: fixed;
+      inset: 0;
+      z-index: 10;
+
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+
+      background: #f5f7fa;
+      color: #173b67;
+    }
+
+    .title {
+      font-size: 26px;
+      font-weight: 800;
+      margin-bottom: 8px;
+    }
+
+    .office {
+      font-size: 15px;
+      font-weight: 700;
+      color: #667085;
+      margin-bottom: 24px;
+    }
+
+    .spinner {
+      width: 42px;
+      height: 42px;
+
+      border: 4px solid #d0d5dd;
+      border-top-color: #173b67;
+      border-radius: 50%;
+
+      animation: spin 0.8s linear infinite;
     }
 
     .message {
-      padding: 24px;
-      text-align: center;
-      font-weight: 700;
+      margin-top: 18px;
+      font-size: 14px;
+      color: #667085;
+      font-weight: 600;
     }
 
-    a {
-      color: #0f7548;
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
     }
   </style>
 </head>
 
+
 <body>
-  <div class="message">
-    Windows通知モニターを開いています…<br><br>
-    自動で切り替わらない場合は
-    <a href="./notification_monitor.html">こちらをクリック</a>
+
+  <div id="loading">
+
+    <div class="title">
+      納品実績
+    </div>
+
+    <div class="office">
+      横浜営業所
+    </div>
+
+    <div class="spinner"></div>
+
+    <div class="message">
+      ログイン画面を開いています…
+    </div>
+
   </div>
+
+
+  <iframe
+    id="appFrame"
+    title="横浜営業所 納品実績"
+    allow="camera; clipboard-read; clipboard-write"
+  ></iframe>
+
+
+  <script>
+
+    /* ========================================
+       横浜営業所 Apps Script Webアプリ
+       ======================================== */
+
+    const WEB_APP_URL =
+      'https://script.google.com/macros/s/AKfycbwQ81_BAcdPaeBqWhqqcQchRWUXlLzy2FztJmYTTkCudGQjMDRqhSLSN0BwMjsgA068/exec';
+
+
+    /* ========================================
+       起動時は必ずログイン画面
+       ======================================== */
+
+    const LOGIN_URL =
+      WEB_APP_URL +
+      '?page=login';
+
+
+    const frame =
+      document.getElementById(
+        'appFrame'
+      );
+
+    const loading =
+      document.getElementById(
+        'loading'
+      );
+
+
+    frame.addEventListener(
+      'load',
+      function () {
+
+        loading.style.display =
+          'none';
+
+      }
+    );
+
+
+    frame.src =
+      LOGIN_URL;
+
+
+    /* ========================================
+       iframe読込失敗時の保険
+       ======================================== */
+
+    window.setTimeout(
+      function () {
+
+        if (
+          loading.style.display !==
+          'none'
+        ) {
+
+          const message =
+            loading.querySelector(
+              '.message'
+            );
+
+          if (message) {
+
+            message.textContent =
+              '読み込みに時間がかかっています…';
+
+          }
+
+        }
+
+      },
+      8000
+    );
+
+  </script>
+
 </body>
 </html>
