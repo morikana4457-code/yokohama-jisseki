@@ -118,12 +118,12 @@
     </div>
 
     <button id="openViewerButton" class="primary">
-      納品実績を開く
+      納品管理を開く
     </button>
 
     <div class="small">
       この通知モニターのタブは閉じずに、そのまま残してください。<br>
-      Windows通知専用・無音：V6
+      Windows通知専用・無音：V7（独立常駐）
     </div>
   </div>
 
@@ -133,7 +133,7 @@
     </div>
 
     <button id="enableButton" class="primary">
-      通知を有効にして納品実績を開く
+      通知を有効にして納品管理を開く
     </button>
   </div>
 
@@ -144,15 +144,20 @@
     </div>
 
     <button id="openViewerWithoutNotification" class="secondary">
-      通知なしで納品実績を開く
+      通知なしで納品管理を開く
     </button>
   </div>
 </div>
 
 <script>
+/*
+ * V7 独立常駐
+ * ログイン・Viewer・運行設定の画面遷移には関与しない。
+ * このタブだけを開いたまま残し、Windows通知だけを担当する。
+ */
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbwQ81_BAcdPaeBqWhqqcQchRWUXlLzy2FztJmYTTkCudGQjMDRqhSLSN0BwMjsgA068/exec';
-const VIEWER_URL = 'https://script.google.com/macros/s/AKfycbwQ81_BAcdPaeBqWhqqcQchRWUXlLzy2FztJmYTTkCudGQjMDRqhSLSN0BwMjsgA068/exec?page=viewer';
-const POLL_MS = 15000;
+const VIEWER_URL = 'https://script.google.com/macros/s/AKfycbwQ81_BAcdPaeBqWhqqcQchRWUXlLzy2FztJmYTTkCudGQjMDRqhSLSN0BwMjsgA068/exec?page=login';
+const POLL_MS = 10000;
 
 /*
  * V3 重複通知防止
@@ -1232,9 +1237,9 @@ function initialize() {
     startPolling();
 
     /*
-     * 既に通知許可済みなら納品実績を開く。
+     * 既に通知許可済みなら納品管理を開く。
      * Edgeが自動ポップアップを止めた場合は
-     * 「納品実績を開く」ボタンで開く。
+     * 「納品管理を開く」ボタンで開く。
      */
     window.setTimeout(
       function() {
