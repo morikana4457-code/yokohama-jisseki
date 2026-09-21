@@ -427,9 +427,36 @@ updatePermissionUi();
 window.addEventListener('message', function(event) {
   const data = event && event.data ? event.data : null;
 
+  if (!data) {
+    return;
+  }
+
   if (
-    !data ||
-    data.type !== 'MORI_APP_NAVIGATE_REQUEST'
+    data.type ===
+      'MORI_PWA_CHILD_READY'
+  ) {
+    try {
+      if (
+        event.source &&
+        typeof event.source.postMessage ===
+          'function'
+      ) {
+        event.source.postMessage(
+          {
+            type:
+              'MORI_PWA_HOST_READY'
+          },
+          '*'
+        );
+      }
+    } catch (e) {}
+
+    return;
+  }
+
+  if (
+    data.type !==
+      'MORI_APP_NAVIGATE_REQUEST'
   ) {
     return;
   }
@@ -469,6 +496,63 @@ window.addEventListener('message', function(event) {
 
   frame.src = url;
 });
+
+
+/* =========================================================
+   V9: PWAホスト・ハンドシェイク
+   =========================================================
+   Apps Script子画面へ「GitHub親の中で動作中」と明示通知する。
+   子画面はこのREADYを受けたら、絶対に window.top へ直接遷移せず、
+   親へ遷移要求だけ送る。
+   ========================================================= */
+(function setupPwaHostHandshake() {
+  const frame =
+    document.getElementById('appFrame');
+
+  if (!frame) {
+    return;
+  }
+
+  function sendReady() {
+    try {
+      if (
+        frame.contentWindow &&
+        typeof frame.contentWindow.postMessage === 'function'
+      ) {
+        frame.contentWindow.postMessage(
+          {
+            type: 'MORI_PWA_HOST_READY'
+          },
+          '*'
+        );
+      }
+    } catch (e) {}
+  }
+
+  frame.addEventListener(
+    'load',
+    function() {
+      sendReady();
+
+      window.setTimeout(
+        sendReady,
+        250
+      );
+
+      window.setTimeout(
+        sendReady,
+        800
+      );
+    }
+  );
+
+  window.setInterval(
+    sendReady,
+    2000
+  );
+
+  sendReady();
+})();
 
 </script>
 </body>
