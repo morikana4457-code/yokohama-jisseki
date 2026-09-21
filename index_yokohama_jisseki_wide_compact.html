@@ -2,227 +2,51 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0f7548">
+  <title>横浜営業所 通知モニター</title>
 
-  <title>横浜 納品実績</title>
+  <meta http-equiv="refresh" content="0; url=./notification_monitor.html">
 
-  <link rel="icon" type="image/png" href="yokohama_jisseki_icon.png">
-  <link rel="apple-touch-icon" href="yokohama_jisseki_icon.png">
-
-  <meta name="theme-color" content="#0e2440">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="apple-mobile-web-app-title" content="横浜 納品実績">
+  <script>
+    window.location.replace('./notification_monitor.html');
+  </script>
 
   <style>
-    :root {
-      --bg: #edf2f5;
-      --card: #ffffff;
-      --text: #183153;
-      --sub: #6b7a8c;
-      --green: #138246;
-      --green-dark: #0f6d3a;
-      --shadow: 0 10px 32px rgba(0, 0, 0, 0.08);
-      --radius: 30px;
-    }
-
-    * {
-      box-sizing: border-box;
-    }
-
     body {
       margin: 0;
       min-height: 100vh;
-      background: var(--bg);
-      font-family:
-        -apple-system,
-        BlinkMacSystemFont,
-        "Helvetica Neue",
-        "Hiragino Kaku Gothic ProN",
-        "Yu Gothic",
-        Meiryo,
-        sans-serif;
-      color: var(--text);
       display: flex;
       align-items: center;
       justify-content: center;
+      font-family:
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        "Yu Gothic",
+        Meiryo,
+        sans-serif;
+      background: #eef2f0;
+      color: #1f2937;
+    }
+
+    .message {
       padding: 24px;
-    }
-
-    .wrap {
-      width: 100%;
-      max-width: 760px;
-    }
-
-    .card {
-      background: var(--card);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow);
-      padding: 54px 44px 46px;
       text-align: center;
+      font-weight: 700;
     }
 
-    .icon {
-      width: 265px;
-      max-width: 54vw;
-      height: auto;
-      display: block;
-      margin: 0 auto 28px;
-      border-radius: 22px;
-    }
-
-    h1 {
-      margin: 0 0 24px;
-      font-size: 34px;
-      line-height: 1.2;
-      font-weight: 800;
-      color: var(--text);
-      letter-spacing: 0.02em;
-    }
-
-    .lead {
-      margin: 0 auto 34px;
-      max-width: 540px;
-      font-size: 18px;
-      line-height: 1.9;
-      color: var(--sub);
-      font-weight: 500;
-    }
-
-    .open-button {
-      display: block;
-      width: 100%;
-      max-width: 640px;
-      margin: 0 auto 30px;
-      padding: 16px 18px;
-      border: none;
-      border-radius: 20px;
-      background: var(--green);
-      color: #fff;
-      text-decoration: none;
-      font-size: 21px;
-      font-weight: 800;
-      line-height: 1.1;
-      letter-spacing: 0.02em;
-      box-shadow: 0 6px 14px rgba(19, 130, 70, 0.24);
-      transition:
-        transform 0.12s ease,
-        background 0.12s ease;
-    }
-
-    .open-button:hover {
-      background: var(--green-dark);
-    }
-
-    .open-button:active {
-      transform: translateY(1px);
-    }
-
-    .note {
-      margin: 0;
-      font-size: 18px;
-      line-height: 1.8;
-      color: var(--sub);
-      font-weight: 500;
-    }
-
-    @media (max-width: 640px) {
-      body {
-        padding: 18px;
-      }
-
-      .card {
-        padding: 38px 24px 32px;
-        border-radius: 26px;
-      }
-
-      .icon {
-        width: 190px;
-        max-width: 62vw;
-        margin-bottom: 22px;
-      }
-
-      h1 {
-        font-size: 28px;
-        margin-bottom: 18px;
-      }
-
-      .lead {
-        font-size: 16px;
-        margin-bottom: 28px;
-      }
-
-      .open-button {
-        font-size: 18px;
-        padding: 15px 14px;
-        border-radius: 18px;
-        margin-bottom: 24px;
-      }
-
-      .note {
-        font-size: 16px;
-      }
+    a {
+      color: #0f7548;
     }
   </style>
 </head>
+
 <body>
-
-  <div class="wrap">
-    <div class="card">
-      <img
-        class="icon"
-        src="yokohama_jisseki_icon.png"
-        alt="横浜 納品実績">
-
-      <h1>横浜 納品実績</h1>
-
-      <p class="lead">
-        Safariでこのページを開き、<br>
-        「共有」→「ホーム画面に追加」を選択してください。
-      </p>
-
-      <!-- ここに納品実績アプリのWebアプリURLを入れてください -->
-      <a
-        id="openAppButton"
-        class="open-button"
-        href="https://script.google.com/macros/s/AKfycbxQU_q2_2iG4RfADWcJ6-hzyK_lC5zu7HvRV5u7nrN4T7ggvpLyaZm_AcG9KKfDLe-A/exec?page=viewer"
-        target="_blank"
-        rel="noopener">
-        納品実績を開く
-      </a>
-
-      <p class="note">
-        ホーム画面から起動した場合は、<br>
-        自動で横浜営業所の納品実績を開きます。
-      </p>
-    </div>
+  <div class="message">
+    Windows通知モニターを開いています…<br><br>
+    自動で切り替わらない場合は
+    <a href="./notification_monitor.html">こちらをクリック</a>
   </div>
-
-  <script>
-    const APP_URL =
-      'https://script.google.com/macros/s/AKfycbxQU_q2_2iG4RfADWcJ6-hzyK_lC5zu7HvRV5u7nrN4T7ggvpLyaZm_AcG9KKfDLe-A/exec?page=viewer';
-
-    const button =
-      document.getElementById(
-        'openAppButton'
-      );
-
-    button.href = APP_URL;
-
-    if (
-      window.matchMedia('(display-mode: standalone)').matches ||
-      window.navigator.standalone === true
-    ) {
-      if (
-        APP_URL &&
-        !APP_URL.includes('https://script.google.com/macros/s/AKfycbxQU_q2_2iG4RfADWcJ6-hzyK_lC5zu7HvRV5u7nrN4T7ggvpLyaZm_AcG9KKfDLe-A/exec?page=viewer')
-      ) {
-        window.location.href = APP_URL;
-      }
-    }
-  </script>
-
 </body>
 </html>
