@@ -454,6 +454,39 @@ window.addEventListener('message', function(event) {
     return;
   }
 
+  /* =========================================================
+     V10: 管理者画面からトップへ戻る専用要求
+     ========================================================= */
+  if (data.type === 'MORI_APP_TOP_REQUEST') {
+    const frame = document.getElementById('appFrame');
+    if (!frame) return;
+
+    const token = String(data.token || '').trim();
+    const navId = String(data.navId || '');
+    const targetUrl =
+      GAS_URL +
+      '?page=login' +
+      (token ? '&token=' + encodeURIComponent(token) : '');
+
+    try {
+      if (
+        event.source &&
+        typeof event.source.postMessage === 'function'
+      ) {
+        event.source.postMessage(
+          {
+            type: 'MORI_APP_NAVIGATE_ACK',
+            navId: navId
+          },
+          '*'
+        );
+      }
+    } catch (e) {}
+
+    frame.src = targetUrl;
+    return;
+  }
+
   if (
     data.type !==
       'MORI_APP_NAVIGATE_REQUEST'
