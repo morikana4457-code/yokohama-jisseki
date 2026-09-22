@@ -112,18 +112,18 @@
 
   <div id="readyArea" style="display:none;">
     <div class="status ok">
-      Windows通知：ON<br>
+      Windows通知：ON ／ 通知音：ON<br>
       通知を監視しています。
       <div id="lastCheck">接続確認中…</div>
     </div>
 
     <button id="openViewerButton" class="primary">
-      納品管理を開く
+      納品実績を別画面で開く
     </button>
 
     <div class="small">
       この通知モニターのタブは閉じずに、そのまま残してください。<br>
-      Windows通知専用・無音：V7（独立常駐）
+      Windows通知＋通知音：V8（独立常駐）
     </div>
   </div>
 
@@ -133,7 +133,7 @@
     </div>
 
     <button id="enableButton" class="primary">
-      通知を有効にして納品管理を開く
+      通知を有効にして納品実績を別画面で開く
     </button>
   </div>
 
@@ -144,7 +144,7 @@
     </div>
 
     <button id="openViewerWithoutNotification" class="secondary">
-      通知なしで納品管理を開く
+      通知なしで納品実績を別画面で開く
     </button>
   </div>
 </div>
@@ -156,7 +156,26 @@
  * このタブだけを開いたまま残し、Windows通知だけを担当する。
  */
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbwQ81_BAcdPaeBqWhqqcQchRWUXlLzy2FztJmYTTkCudGQjMDRqhSLSN0BwMjsgA068/exec';
-const VIEWER_URL = 'https://script.google.com/macros/s/AKfycbwQ81_BAcdPaeBqWhqqcQchRWUXlLzy2FztJmYTTkCudGQjMDRqhSLSN0BwMjsgA068/exec?page=login';
+const DEFAULT_VIEWER_URL = GAS_URL + '?page=login';
+
+function readViewerUrlFromHash() {
+  try {
+    const hash = String(window.location.hash || '').replace(/^#/, '');
+    const params = new URLSearchParams(hash);
+    const candidate = String(params.get('viewer') || '').trim();
+
+    if (candidate && candidate.startsWith(GAS_URL) && /[?&]page=viewer(?:&|$)/.test(candidate)) {
+      try {
+        window.history.replaceState(null, '', window.location.pathname + window.location.search);
+      } catch (e) {}
+      return candidate;
+    }
+  } catch (e) {}
+
+  return DEFAULT_VIEWER_URL;
+}
+
+const VIEWER_URL = readViewerUrlFromHash();
 const POLL_MS = 10000;
 
 /*
@@ -481,11 +500,12 @@ function showWindowsNotification(
           renotify: false,
 
           /*
-           * FIX62:
-           * Windows通知は表示のみ。
-           * 通知音はViewer前面時の1回に統一する。
+           * FIX63:
+           * Windows通知はOS側の通知音を使用する。
+           * 通知モニターが背面・最小化でも、Windowsの通知設定で
+           * サウンドが有効なら通知音が鳴る。
            */
-          silent: true
+          silent: false
         }
       );
 
@@ -1237,23 +1257,10 @@ function initialize() {
     startPolling();
 
     /*
-     * 既に通知許可済みなら納品管理を開く。
-     * Edgeが自動ポップアップを止めた場合は
-     * 「納品管理を開く」ボタンで開く。
+     * 2026-09-22:
+     * 通知モニター画面を表示したまま監視を開始する。
+     * 納品実績は「納品実績を別画面で開く」から開く。
      */
-    window.setTimeout(
-      function() {
-
-        if (
-          !viewerOpenedThisSession
-        ) {
-          openViewer();
-        }
-
-      },
-      300
-    );
-
     return;
   }
 
