@@ -4,6 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#0f7548">
+
+<!-- PWA / iPhone ホーム画面アイコン -->
+<link rel="apple-touch-icon" sizes="180x180" href="./icon-180.png?v=20260923">
+<link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png?v=20260923">
+<link rel="icon" type="image/png" sizes="512x512" href="./icon-512.png?v=20260923">
+<link rel="manifest" href="./manifest.json?v=20260923">
+
 <title>横浜営業所 納品実績</title>
 
 <style>
@@ -415,6 +422,178 @@ document.addEventListener('visibilitychange', function() {
 });
 
 updatePermissionUi();
+
+
+/* =========================================================
+   V8: Apps Script画面遷移をGitHub親画面内に固定
+   =========================================================
+   AuthLogin / Operation / 納品報告からの画面遷移要求を受け取り、
+   親のGitHub Pagesは残したまま appFrame.src だけを切り替える。
+   これによりWindows通知監視がログイン後も停止しない。
+   ========================================================= */
+window.addEventListener('message', function(event) {
+  const data = event && event.data ? event.data : null;
+
+  if (!data) {
+    return;
+  }
+
+  if (
+    data.type ===
+      'MORI_PWA_CHILD_READY'
+  ) {
+    try {
+      if (
+        event.source &&
+        typeof event.source.postMessage ===
+          'function'
+      ) {
+        event.source.postMessage(
+          {
+            type:
+              'MORI_PWA_HOST_READY'
+          },
+          '*'
+        );
+      }
+    } catch (e) {}
+
+    return;
+  }
+
+  /* =========================================================
+     V10: 管理者画面からトップへ戻る専用要求
+     ========================================================= */
+  if (data.type === 'MORI_APP_TOP_REQUEST') {
+    const frame = document.getElementById('appFrame');
+    if (!frame) return;
+
+    const token = String(data.token || '').trim();
+    const navId = String(data.navId || '');
+    const targetUrl =
+      GAS_URL +
+      '?page=login' +
+      (token ? '&token=' + encodeURIComponent(token) : '');
+
+    try {
+      if (
+        event.source &&
+        typeof event.source.postMessage === 'function'
+      ) {
+        event.source.postMessage(
+          {
+            type: 'MORI_APP_NAVIGATE_ACK',
+            navId: navId
+          },
+          '*'
+        );
+      }
+    } catch (e) {}
+
+    frame.src = targetUrl;
+    return;
+  }
+
+  if (
+    data.type !==
+      'MORI_APP_NAVIGATE_REQUEST'
+  ) {
+    return;
+  }
+
+  const url = String(data.url || '').trim();
+  const navId = String(data.navId || '');
+
+  /* この横浜Apps Script以外への遷移要求は受け付けない */
+  if (
+    !url ||
+    !url.startsWith(GAS_URL)
+  ) {
+    return;
+  }
+
+  try {
+    if (
+      event.source &&
+      typeof event.source.postMessage === 'function'
+    ) {
+      event.source.postMessage(
+        {
+          type: 'MORI_APP_NAVIGATE_ACK',
+          navId: navId
+        },
+        '*'
+      );
+    }
+  } catch (e) {}
+
+  const frame =
+    document.getElementById('appFrame');
+
+  if (!frame) {
+    return;
+  }
+
+  frame.src = url;
+});
+
+
+/* =========================================================
+   V9: PWAホスト・ハンドシェイク
+   =========================================================
+   Apps Script子画面へ「GitHub親の中で動作中」と明示通知する。
+   子画面はこのREADYを受けたら、絶対に window.top へ直接遷移せず、
+   親へ遷移要求だけ送る。
+   ========================================================= */
+(function setupPwaHostHandshake() {
+  const frame =
+    document.getElementById('appFrame');
+
+  if (!frame) {
+    return;
+  }
+
+  function sendReady() {
+    try {
+      if (
+        frame.contentWindow &&
+        typeof frame.contentWindow.postMessage === 'function'
+      ) {
+        frame.contentWindow.postMessage(
+          {
+            type: 'MORI_PWA_HOST_READY'
+          },
+          '*'
+        );
+      }
+    } catch (e) {}
+  }
+
+  frame.addEventListener(
+    'load',
+    function() {
+      sendReady();
+
+      window.setTimeout(
+        sendReady,
+        250
+      );
+
+      window.setTimeout(
+        sendReady,
+        800
+      );
+    }
+  );
+
+  window.setInterval(
+    sendReady,
+    2000
+  );
+
+  sendReady();
+})();
+
 </script>
 </body>
 </html>
