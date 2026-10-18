@@ -367,6 +367,12 @@ function startPolling() {
 }
 
 function updatePermissionUi() {
+  // モバイルの連絡通知はdelivery-push-host.jsで扱う。
+  if (/iPhone|iPad|iPod|Android/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) {
+    document.getElementById('notifyGate').classList.remove('show');
+    document.getElementById('notifyStatus').style.display = 'none';
+    return;
+  }
   const gate = document.getElementById('notifyGate');
   const status = document.getElementById('notifyStatus');
 
@@ -416,7 +422,7 @@ document.getElementById('notifyEnableButton').addEventListener('click', async fu
 });
 
 document.addEventListener('visibilitychange', function() {
-  if (!document.hidden && Notification.permission === 'granted') {
+  if (!document.hidden && 'Notification' in window && Notification.permission === 'granted') {
     poll();
   }
 });
@@ -595,5 +601,7 @@ window.addEventListener('message', function(event) {
 })();
 
 </script>
+<script src="./delivery-push-config.js?v=20261018"></script>
+<script src="./delivery-push-host.js?v=20261018"></script>
 </body>
 </html>
