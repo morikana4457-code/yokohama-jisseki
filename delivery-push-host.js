@@ -1,6 +1,6 @@
 (function(){
   'use strict';
-  const frame=document.getElementById('appFrame'), STORE='mori-dp71-device-v1';
+  const STORE='mori-dp71-device-v1';
   let peer=null,peerOrigin='',peerNonce='',context=null,contextKey='',generation=0;
   let device=null,messaging=null,registration=null,sdkPromise=null;
   const waiting=new Map();
@@ -16,19 +16,8 @@
   function nextDevice(){device.revision=Math.max(Date.now(),Number(device.revision||0)+1);persist();return {
     deviceId:device.deviceId,secret:device.secret,revision:device.revision
   };}
-  function fromApp(source){
-    // GASはGoogleの外側フレーム内にさらにsandboxフレームを持つ。
-    // originだけでなく、appFrameの子孫からの送信であることを確認する。
-    try{for(let i=0;source&&i<8;i++){
-      if(source===frame.contentWindow)return true;
-      if(source.parent===source)break;source=source.parent;
-    }}catch(e){}return false;
-  }
-  function trusted(event){
-    try {const u=new URL(event.origin);return u.protocol==='https:' &&
-      (u.hostname==='script.google.com'||u.hostname.endsWith('.googleusercontent.com'))&&fromApp(event.source);
-    }catch(e){return false;}
-  }
+  
+  function trusted(event){return window.MORI_APP72.fromApp(event);}
   const box=document.createElement('section');
   box.setAttribute('aria-label','連絡通知の設定');
   box.style.cssText='position:fixed;bottom:max(12px,env(safe-area-inset-bottom));left:12px;right:12px;max-width:430px;margin:auto;z-index:100000;background:white;color:#173b67;border:1px solid #b9cbdf;border-radius:12px;padding:12px;box-shadow:0 4px 22px #0003;font:14px/1.5 sans-serif;display:none;box-sizing:border-box';
@@ -65,7 +54,7 @@
     if(!sdkPromise)sdkPromise=(async function(){
       if(!window.firebase){await script('https://www.gstatic.com/firebasejs/13.0.0/firebase-app-compat.js');await script('https://www.gstatic.com/firebasejs/13.0.0/firebase-messaging-compat.js');}
       if(!(await firebase.messaging.isSupported()))throw Error('このブラウザは通知に対応していません。');
-      firebase.initializeApp(MORI_PUSH_CONFIG.firebase);
+      if(!firebase.apps||!firebase.apps.length)firebase.initializeApp(MORI_PUSH_CONFIG.firebase);
       messaging=firebase.messaging();
       registration=await navigator.serviceWorker.register('./firebase-messaging-sw.js',{scope:'./',updateViaCache:'none'});
       if(!registration.active)await new Promise(function(resolve,reject){
@@ -137,8 +126,12 @@
   });
   if(navigator.serviceWorker)navigator.serviceWorker.addEventListener('message',function(e){
     if(e.data&&e.data.type==='DP71_OPEN_INBOX'){
-      if(peer&&context&&context.driver)peer.postMessage({type:'DP71_OPEN_INBOX',nonce:peerNonce},peerOrigin);else openInbox=true;
+      if(peer&&context&&context.driver&&window.MORI_APP72.window&&!window.MORI_APP72.window.closed)peer.postMessage({type:'DP71_OPEN_INBOX',nonce:peerNonce},peerOrigin);else openInbox=true;
     }
   });
-  frame.addEventListener('load',function(){peer=null;peerOrigin='';peerNonce='';contextKey='';++generation;enable.disabled=false;stop.disabled=false;});
+  window.addEventListener('mori-app72-reset',function(){
+    peer=null;peerOrigin='';peerNonce='';contextKey='';context=null;++generation;
+    for(const w of waiting.values()){clearTimeout(w.timer);w.reject(Error('画面が切り替わりました。新しい画面の準備後に通知設定を確認してください。'));}
+    waiting.clear();enable.disabled=false;stop.disabled=false;box.style.display='none';reopen.style.display='none';
+  });
 })();
