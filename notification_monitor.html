@@ -1,1336 +1,237 @@
 <!DOCTYPE html>
-<html lang="ja">
+
+<html dir="ltr" lang="ja">
+
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>横浜営業所 通知モニター</title>
-<meta name="theme-color" content="#0f7548">
+<meta charset="utf-8">
+<meta name="color-scheme" content="light dark">
+<meta name="google" value="notranslate">
+
+<script>
+function addRow(name, url, isdir,
+    size, size_string, date_modified, date_modified_string) {
+  if (name == "." || name == "..")
+    return;
+
+  var root = document.location.pathname;
+  if (root.substr(-1) !== "/")
+    root += "/";
+
+  var tbody = document.getElementById("tbody");
+  var row = document.createElement("tr");
+  var file_cell = document.createElement("td");
+  var link = document.createElement("a");
+
+  link.className = isdir ? "icon dir" : "icon file";
+
+  if (isdir) {
+    name = name + "/";
+    url = url + "/";
+    size = 0;
+    size_string = "";
+  } else {
+    link.draggable = "true";
+    link.addEventListener("dragstart", onDragStart, false);
+  }
+  link.innerText = name;
+  link.href = root + url;
+
+  file_cell.dataset.value = name;
+  file_cell.appendChild(link);
+
+  row.appendChild(file_cell);
+  row.appendChild(createCell(size, size_string));
+  row.appendChild(createCell(date_modified, date_modified_string));
+
+  tbody.appendChild(row);
+}
+
+function onDragStart(e) {
+  var el = e.srcElement;
+  var name = el.innerText.replace(":", "");
+  var download_url_data = "application/octet-stream:" + name + ":" + el.href;
+  e.dataTransfer.setData("DownloadURL", download_url_data);
+  e.dataTransfer.effectAllowed = "copy";
+}
+
+function createCell(value, text) {
+  var cell = document.createElement("td");
+  cell.setAttribute("class", "detailsColumn");
+  cell.dataset.value = value;
+  cell.innerText = text;
+  return cell;
+}
+
+function start(location) {
+  var header = document.getElementById("header");
+  header.innerText = header.innerText.replace("LOCATION", location);
+
+  document.getElementById("title").innerText = header.innerText;
+}
+
+function onHasParentDirectory() {
+  var box = document.getElementById("parentDirLinkBox");
+  box.style.display = "block";
+
+  var root = document.location.pathname;
+  if (!root.endsWith("/"))
+    root += "/";
+
+  var link = document.getElementById("parentDirLink");
+  link.href = root + "..";
+}
+
+function sortTable(column) {
+  var theader = document.getElementById("theader");
+  var oldOrder = theader.cells[column].dataset.order || '1';
+  oldOrder = parseInt(oldOrder, 10)
+  var newOrder = 0 - oldOrder;
+  theader.cells[column].dataset.order = newOrder;
+
+  var tbody = document.getElementById("tbody");
+  var rows = tbody.rows;
+  var list = [], i;
+  for (i = 0; i < rows.length; i++) {
+    list.push(rows[i]);
+  }
+
+  list.sort(function(row1, row2) {
+    var a = row1.cells[column].dataset.value;
+    var b = row2.cells[column].dataset.value;
+    if (column) {
+      a = parseInt(a, 10);
+      b = parseInt(b, 10);
+      return a > b ? newOrder : a < b ? oldOrder : 0;
+    }
+
+    // Column 0 is text.
+    if (a > b)
+      return newOrder;
+    if (a < b)
+      return oldOrder;
+    return 0;
+  });
+
+  // Appending an existing child again just moves it.
+  for (i = 0; i < list.length; i++) {
+    tbody.appendChild(list[i]);
+  }
+}
+
+// Add event handlers to column headers.
+function addHandlers(element, column) {
+  element.onclick = (e) => sortTable(column);
+  element.onkeydown = (e) => {
+    if (e.key == 'Enter' || e.key == ' ') {
+      sortTable(column);
+      e.preventDefault();
+    }
+  };
+}
+
+function onLoad() {
+  addHandlers(document.getElementById('nameColumnHeader'), 0);
+  addHandlers(document.getElementById('sizeColumnHeader'), 1);
+  addHandlers(document.getElementById('dateColumnHeader'), 2);
+}
+
+window.addEventListener('DOMContentLoaded', onLoad);
+</script>
 
 <style>
-  * { box-sizing: border-box; }
-
-  body {
-    margin: 0;
-    min-height: 100vh;
-    font-family:
-      -apple-system,
-      BlinkMacSystemFont,
-      "Segoe UI",
-      "Yu Gothic",
-      Meiryo,
-      sans-serif;
-    background: #eef2f0;
-    color: #1f2937;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 24px;
-  }
-
-  .card {
-    width: min(560px, 100%);
-    background: #ffffff;
-    border-radius: 20px;
-    padding: 28px;
-    box-shadow: 0 12px 34px rgba(0,0,0,.10);
-    text-align: center;
-  }
 
   h1 {
-    margin: 0 0 10px;
-    font-size: 26px;
+    border-bottom: 1px solid #c0c0c0;
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+    white-space: nowrap;
   }
 
-  .status {
-    margin-top: 18px;
-    padding: 18px;
-    border-radius: 14px;
-    background: #f7faf8;
-    border: 1px solid #dce5e0;
-    line-height: 1.6;
-    font-weight: 700;
+  table {
+    border-collapse: collapse;
   }
 
-  .ok {
-    color: #0f7548;
-  }
-
-  .warn {
-    color: #b45309;
-  }
-
-  .err {
-    color: #b91c1c;
-  }
-
-  button {
-    width: 100%;
-    border: 0;
-    border-radius: 14px;
-    min-height: 54px;
-    margin-top: 14px;
-    padding: 14px 18px;
-    font-size: 17px;
-    font-weight: 900;
+  th {
     cursor: pointer;
   }
 
-  .primary {
-    background: #0f7548;
-    color: #ffffff;
+  td.detailsColumn {
+    padding-inline-start: 2em;
+    text-align: end;
+    white-space: nowrap;
   }
 
-  .secondary {
-    background: #eef2f0;
-    color: #1f2937;
-    border: 1px solid #cdd8d2;
+  a.icon {
+    padding-inline-start: 1.5em;
+    text-decoration: none;
+    user-select: auto;
   }
 
-  .small {
-    margin-top: 16px;
-    font-size: 13px;
-    color: #667085;
-    line-height: 1.6;
+  a.icon:hover {
+    text-decoration: underline;
   }
 
-  #permissionArea,
-  #blockedArea {
-    display: none;
+  a.file {
+    background : url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAABnRSTlMAAAAAAABupgeRAAABEElEQVR42nRRx3HDMBC846AHZ7sP54BmWAyrsP588qnwlhqw/k4v5ZwWxM1hzmGRgV1cYqrRarXoH2w2m6qqiqKIR6cPtzc3xMSML2Te7XZZlnW7Pe/91/dX47WRBHuA9oyGmRknzGDjab1ePzw8bLfb6WRalmW4ip9FDVpYSWZgOp12Oh3nXJ7nxoJSGEciteP9y+fH52q1euv38WosqA6T2gGOT44vry7BEQtJkMAMMpa6JagAMcUfWYa4hkkzAc7fFlSjwqCoOUYAF5RjHZPVCFBOtSBGfgUDji3c3jpibeEMQhIMh8NwshqyRsBJgvF4jMs/YlVR5KhgNpuBLzk0OcUiR3CMhcPaOzsZiAAA/AjmaB3WZIkAAAAASUVORK5CYII=") left top no-repeat;
   }
 
-  #lastCheck {
-    margin-top: 12px;
-    font-size: 14px;
-    color: #475569;
+  a.dir {
+    background : url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAABt0lEQVR42oxStZoWQRCs2cXdHTLcHZ6EjAwnQWIkJyQlRt4Cd3d3d1n5d7q7ju1zv/q+mh6taQsk8fn29kPDRo87SDMQcNAUJgIQkBjdAoRKdXjm2mOH0AqS+PlkP8sfp0h93iu/PDji9s2FzSSJVg5ykZqWgfGRr9rAAAQiDFoB1OfyESZEB7iAI0lHwLREQBcQQKqo8p+gNUCguwCNAAUQAcFOb0NNGjT+BbUC2YsHZpWLhC6/m0chqIoM1LKbQIIBwlTQE1xAo9QDGDPYf6rkTpPc92gCUYVJAZjhyZltJ95f3zuvLYRGWWCUNkDL2333McBh4kaLlxg+aTmyL7c2xTjkN4Bt7oE3DBP/3SRz65R/bkmBRPGzcRNHYuzMjaj+fdnaFoJUEdTSXfaHbe7XNnMPyqryPcmfY+zURaAB7SHk9cXSH4fQ5rojgCAVIuqCNWgRhLYLhJB4k3iZfIPtnQiCpjAzeBIRXMA6emAqoEbQSoDdGxFUrxS1AYcpaNbBgyQBGJEOnYOeENKR/iAd1npusI4C75/c3539+nbUjOgZV5CkAU27df40lH+agUdIuA/EAgDmZnwZlhDc0wAAAABJRU5ErkJggg==") left top no-repeat;
+  }
+
+  a.up {
+    background : url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAACM0lEQVR42myTA+w1RxRHz+zftmrbdlTbtq04qRGrCmvbDWp9tq3a7tPcub8mj9XZ3eHOGQdJAHw77/LbZuvnWy+c/CIAd+91CMf3bo+bgcBiBAGIZKXb19/zodsAkFT+3px+ssYfyHTQW5tr05dCOf3xN49KaVX9+2zy1dX4XMk+5JflN5MBPL30oVsvnvEyp+18Nt3ZAErQMSFOfelCFvw0HcUloDayljZkX+MmamTAMTe+d+ltZ+1wEaRAX/MAnkJdcujzZyErIiVSzCEvIiq4O83AG7LAkwsfIgAnbncag82jfPPdd9RQyhPkpNJvKJWQBKlYFmQA315n4YPNjwMAZYy0TgAweedLmLzTJSTLIxkWDaVCVfAbbiKjytgmm+EGpMBYW0WwwbZ7lL8anox/UxekaOW544HO0ANAshxuORT/RG5YSrjlwZ3lM955tlQqbtVMlWIhjwzkAVFB8Q9EAAA3AFJ+DR3DO/Pnd3NPi7H117rAzWjpEs8vfIqsGZpaweOfEAAFJKuM0v6kf2iC5pZ9+fmLSZfWBVaKfLLNOXj6lYY0V2lfyVCIsVzmcRV9Y0fx02eTaEwhl2PDrXcjFdYRAohQmS8QEFLCLKGYA0AeEakhCCFDXqxsE0AQACgAQp5w96o0lAXuNASeDKWIvADiHwigfBINpWKtAXJvCEKWgSJNbRvxf4SmrnKDpvZavePu1K/zu/due1X/6Nj90MBd/J2Cic7WjBp/jUdIuA8AUtd65M+PzXIAAAAASUVORK5CYII=") left top no-repeat;
+  }
+
+  html[dir=rtl] a {
+    background-position-x: right;
+  }
+
+  #parentDirLinkBox {
+    margin-bottom: 10px;
+    padding-bottom: 10px;
   }
 </style>
+
+<title id="title"></title>
+
 </head>
 
 <body>
-<div class="card">
-  <h1>横浜営業所 通知モニター</h1>
 
-  <div id="readyArea" style="display:none;">
-    <div class="status ok">
-      Windows通知：ON ／ 通知音：ON<br>
-      通知を監視しています。
-      <div id="lastCheck">接続確認中…</div>
-    </div>
+<h1 id="header">LOCATION のインデックス</h1>
 
-    <button id="openViewerButton" class="primary">
-      納品実績を別画面で開く
-    </button>
-
-    <div class="small">
-      この通知モニターのタブは閉じずに、そのまま残してください。<br>
-      Windows通知＋通知音：V8（独立常駐）
-    </div>
-  </div>
-
-  <div id="permissionArea">
-    <div class="status warn">
-      初回のみWindows通知の許可が必要です。
-    </div>
-
-    <button id="enableButton" class="primary">
-      通知を有効にして納品実績を別画面で開く
-    </button>
-  </div>
-
-  <div id="blockedArea">
-    <div class="status err">
-      Windows通知がブロックされています。<br>
-      Edgeのサイト設定で通知を「許可」にしてください。
-    </div>
-
-    <button id="openViewerWithoutNotification" class="secondary">
-      通知なしで納品実績を別画面で開く
-    </button>
-  </div>
+<div id="parentDirLinkBox" style="display:none">
+  <a id="parentDirLink" class="icon up">
+    <span id="parentDirText">[親ディレクトリ]</span>
+  </a>
 </div>
 
-<script>
-/*
- * V7 独立常駐
- * ログイン・Viewer・運行設定の画面遷移には関与しない。
- * このタブだけを開いたまま残し、Windows通知だけを担当する。
- */
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbwQ81_BAcdPaeBqWhqqcQchRWUXlLzy2FztJmYTTkCudGQjMDRqhSLSN0BwMjsgA068/exec';
-const DEFAULT_VIEWER_URL = GAS_URL + '?page=login';
+<table>
+  <thead>
+    <tr class="header" id="theader">
+      <th id="nameColumnHeader" tabindex=0 role="button">名前</th>
+      <th id="sizeColumnHeader" class="detailsColumn" tabindex=0 role="button">
+        サイズ
+      </th>
+      <th id="dateColumnHeader" class="detailsColumn" tabindex=0 role="button">
+        更新日
+      </th>
+    </tr>
+  </thead>
+  <tbody id="tbody">
+  </tbody>
+</table>
 
-function readViewerUrlFromHash() {
-  try {
-    const hash = String(window.location.hash || '').replace(/^#/, '');
-    const params = new URLSearchParams(hash);
-    const candidate = String(params.get('viewer') || '').trim();
-
-    if (candidate && candidate.startsWith(GAS_URL) && /[?&]page=viewer(?:&|$)/.test(candidate)) {
-      try {
-        window.history.replaceState(null, '', window.location.pathname + window.location.search);
-      } catch (e) {}
-      return candidate;
-    }
-  } catch (e) {}
-
-  return DEFAULT_VIEWER_URL;
-}
-
-const VIEWER_URL = readViewerUrlFromHash();
-const POLL_MS = 10000;
-
-/*
- * V3 重複通知防止
- *
- * 1) reportId / runId を基準に「同じ出来事」を1件として扱う
- * 2) 通知済みキーを localStorage に当日分だけ保存
- * 3) 複数タブが開いていても Web Locks で通知判定を直列化
- * 4) API取得結果から一時的に消えて再登場しても再通知しない
- */
-const SEEN_STORAGE_KEY =
-  'mori-notification-monitor-seen-v3';
-
-const PROCESS_LOCK_NAME =
-  'mori-notification-monitor-process-v3';
-
-let initialized = false;
-let polling = false;
-let pollTimer = null;
-let viewerOpenedThisSession = false;
-let viewerWindowRef = null;
-
-const readyArea =
-  document.getElementById('readyArea');
-
-const permissionArea =
-  document.getElementById('permissionArea');
-
-const blockedArea =
-  document.getElementById('blockedArea');
-
-const enableButton =
-  document.getElementById('enableButton');
-
-const openViewerButton =
-  document.getElementById('openViewerButton');
-
-const openViewerWithoutNotification =
-  document.getElementById(
-    'openViewerWithoutNotification'
-  );
-
-const lastCheck =
-  document.getElementById('lastCheck');
-
-
-function todayKey() {
-  const d = new Date();
-
-  return (
-    d.getFullYear() +
-    '-' +
-    String(
-      d.getMonth() + 1
-    ).padStart(2, '0') +
-    '-' +
-    String(
-      d.getDate()
-    ).padStart(2, '0')
-  );
-}
-
-
-function showArea(name) {
-  readyArea.style.display =
-    name === 'ready'
-      ? 'block'
-      : 'none';
-
-  permissionArea.style.display =
-    name === 'permission'
-      ? 'block'
-      : 'none';
-
-  blockedArea.style.display =
-    name === 'blocked'
-      ? 'block'
-      : 'none';
-}
-
-
-function openViewer() {
-
-  /*
-   * 通知モニターはこのタブに残し、
-   * 納品実績は別タブで開く。
-   */
-  const w =
-    window.open(
-      VIEWER_URL,
-      'mori_delivery_viewer'
-    );
-
-  if (w) {
-
-    viewerWindowRef =
-      w;
-
-    try {
-      w.focus();
-    } catch (e) {}
-
-    viewerOpenedThisSession = true;
-    return true;
-  }
-
-  return false;
-}
-
-
-function semanticEventKey(
-  type,
-  item
-) {
-
-  const row =
-    item || {};
-
-  if (type === 'report') {
-
-    const reportId =
-      String(
-        row.reportId || ''
-      ).trim();
-
-    if (reportId) {
-      return (
-        'report|' +
-        reportId
-      );
-    }
-
-  }
-
-  if (type === 'operation') {
-
-    const runId =
-      String(
-        row.runId || ''
-      ).trim();
-
-    if (runId) {
-      return (
-        'operation|' +
-        runId
-      );
-    }
-
-  }
-
-  if (type === 'completion') {
-
-    const runId =
-      String(
-        row.runId || ''
-      ).trim();
-
-    if (runId) {
-      return (
-        'completion|' +
-        runId
-      );
-    }
-
-  }
-
-  const raw =
-    String(
-      row.key || ''
-    ).trim();
-
-  if (raw) {
-    return (
-      type +
-      '|' +
-      raw
-    );
-  }
-
-  return [
-    type,
-    String(
-      row.timestamp ||
-      row.updatedAt ||
-      0
-    ),
-    String(
-      row.routeName || ''
-    ),
-    String(
-      row.driver || ''
-    )
-  ].join('|');
-}
-
-
-function readSeenKeys() {
-
-  const date =
-    todayKey();
-
-  try {
-
-    const raw =
-      localStorage.getItem(
-        SEEN_STORAGE_KEY
-      );
-
-    if (!raw) {
-      return {
-        date: date,
-        keys: new Set()
-      };
-    }
-
-    const parsed =
-      JSON.parse(raw);
-
-    if (
-      !parsed ||
-      parsed.date !== date ||
-      !Array.isArray(parsed.keys)
-    ) {
-      return {
-        date: date,
-        keys: new Set()
-      };
-    }
-
-    return {
-      date: date,
-      keys:
-        new Set(
-          parsed.keys.map(
-            function(value) {
-              return String(
-                value || ''
-              );
-            }
-          )
-        )
-    };
-
-  } catch (error) {
-
-    return {
-      date: date,
-      keys: new Set()
-    };
-
-  }
-
-}
-
-
-function writeSeenKeys(
-  date,
-  keys
-) {
-
-  try {
-
-    /*
-     * 念のため上限を設ける。
-     * 1日分として十分な件数を保持する。
-     */
-    const values =
-      Array
-        .from(keys)
-        .filter(Boolean)
-        .slice(-2000);
-
-    localStorage.setItem(
-      SEEN_STORAGE_KEY,
-      JSON.stringify({
-        date: date,
-        keys: values
-      })
-    );
-
-  } catch (error) {
-    // localStorageが使えない環境でも通知監視は継続
-  }
-
-}
-
-
-function showWindowsNotification(
-  title,
-  body,
-  tag
-) {
-
-  if (
-    !('Notification' in window) ||
-    Notification.permission !==
-      'granted'
-  ) {
-    return;
-  }
-
-  try {
-
-    const n =
-      new Notification(
-        title,
-        {
-          body:
-            body || '',
-
-          tag:
-            tag ||
-            (
-              'mori-' +
-              Date.now()
-            ),
-
-          /*
-           * 同じイベントはJS側で完全に除外する。
-           * OS側で同じtagを再鳴動させないため false。
-           */
-          renotify: false,
-
-          /*
-           * FIX63:
-           * Windows通知はOS側の通知音を使用する。
-           * 通知モニターが背面・最小化でも、Windowsの通知設定で
-           * サウンドが有効なら通知音が鳴る。
-           */
-          silent: false
-        }
-      );
-
-    n.onclick =
-      function() {
-
-        try {
-          window.focus();
-        } catch (e) {}
-
-        try {
-          n.close();
-        } catch (e) {}
-
-      };
-
-  } catch (error) {
-    console.error(error);
-  }
-
-}
-
-
-/* V5: Viewer前面通知への転送は廃止。Windows通知のみ担当。 */
-
-function notifyOperation(item) {
-
-  const body = [
-    [
-      item.routeName,
-      item.driver
-    ]
-      .filter(Boolean)
-      .join('　'),
-
-    item.time
-      ? (
-          '時刻　' +
-          item.time
-        )
-      : ''
-  ]
-    .filter(Boolean)
-    .join('\n');
-
-  showWindowsNotification(
-    '納品実績｜出発',
-    body ||
-      '運行を開始しました',
-    semanticEventKey(
-      'operation',
-      item
-    )
-  );
-
-}
-
-
-function notifyReport(item) {
-
-  const body = [
-    [
-      item.routeName,
-      item.driver
-    ]
-      .filter(Boolean)
-      .join('　'),
-
-    [
-      item.customer,
-      item.destination
-    ]
-      .filter(Boolean)
-      .join(' ／ '),
-
-    [
-      item.time
-        ? (
-            '時刻　' +
-            item.time
-          )
-        : '',
-
-      item.reportId
-        ? (
-            '報告ID　' +
-            item.reportId
-          )
-        : ''
-    ]
-      .filter(Boolean)
-      .join('　')
-  ]
-    .filter(Boolean)
-    .join('\n');
-
-  showWindowsNotification(
-    '納品実績｜新着納品報告',
-    body ||
-      '新しい納品報告を受信しました',
-    semanticEventKey(
-      'report',
-      item
-    )
-  );
-
-}
-
-
-function notifyCompletion(item) {
-
-  const body = [
-    [
-      item.routeName,
-      item.driver
-    ]
-      .filter(Boolean)
-      .join('　'),
-
-    item.time
-      ? (
-          '終了時刻　' +
-          item.time
-        )
-      : ''
-  ]
-    .filter(Boolean)
-    .join('\n');
-
-  showWindowsNotification(
-    '納品実績｜' +
-      (
-        item.completionLabel ||
-        '運行終了'
-      ),
-    body ||
-      '運行を終了しました',
-    semanticEventKey(
-      'completion',
-      item
-    )
-  );
-
-}
-
-
-function normalizeIncoming(
-  data
-) {
-
-  return {
-    operations:
-      Array.isArray(
-        data &&
-        data.operations
-      )
-        ? data.operations
-        : [],
-
-    reports:
-      Array.isArray(
-        data &&
-        data.reports
-      )
-        ? data.reports
-        : [],
-
-    completions:
-      Array.isArray(
-        data &&
-        data.completions
-      )
-        ? data.completions
-        : []
-  };
-}
-
-
-function collectAllKeys(
-  incoming
-) {
-
-  const keys = [];
-
-  incoming.operations
-    .forEach(
-      function(item) {
-        keys.push(
-          semanticEventKey(
-            'operation',
-            item
-          )
-        );
-      }
-    );
-
-  incoming.reports
-    .forEach(
-      function(item) {
-        keys.push(
-          semanticEventKey(
-            'report',
-            item
-          )
-        );
-      }
-    );
-
-  incoming.completions
-    .forEach(
-      function(item) {
-        keys.push(
-          semanticEventKey(
-            'completion',
-            item
-          )
-        );
-      }
-    );
-
-  return keys.filter(Boolean);
-}
-
-
-function processIncomingData(
-  data
-) {
-
-  const incoming =
-    normalizeIncoming(data);
-
-  const stored =
-    readSeenKeys();
-
-  const seen =
-    stored.keys;
-
-  /*
-   * 初回だけは現在存在するレコードを基準値として登録。
-   * 過去分をまとめて鳴らさない。
-   */
-  if (!initialized) {
-
-    collectAllKeys(
-      incoming
-    )
-      .forEach(
-        function(key) {
-          seen.add(key);
-        }
-      );
-
-    writeSeenKeys(
-      stored.date,
-      seen
-    );
-
-    initialized = true;
-
-    updateLastCheck(
-      '監視中'
-    );
-
-    return;
-  }
-
-
-  const notifyQueue = [];
-
-
-  incoming.operations
-    .slice()
-    .sort(
-      function(a, b) {
-        return (
-          Number(
-            a.timestamp || 0
-          ) -
-          Number(
-            b.timestamp || 0
-          )
-        );
-      }
-    )
-    .forEach(
-      function(item) {
-
-        const key =
-          semanticEventKey(
-            'operation',
-            item
-          );
-
-        if (
-          key &&
-          !seen.has(key)
-        ) {
-          seen.add(key);
-
-          notifyQueue.push({
-            type:
-              'operation',
-
-            item:
-              item
-          });
-        }
-
-      }
-    );
-
-
-  incoming.reports
-    .slice()
-    .sort(
-      function(a, b) {
-        return (
-          Number(
-            a.timestamp || 0
-          ) -
-          Number(
-            b.timestamp || 0
-          )
-        );
-      }
-    )
-    .forEach(
-      function(item) {
-
-        const key =
-          semanticEventKey(
-            'report',
-            item
-          );
-
-        if (
-          key &&
-          !seen.has(key)
-        ) {
-          seen.add(key);
-
-          notifyQueue.push({
-            type:
-              'report',
-
-            item:
-              item
-          });
-        }
-
-      }
-    );
-
-
-  incoming.completions
-    .slice()
-    .sort(
-      function(a, b) {
-        return (
-          Number(
-            a.updatedAt || 0
-          ) -
-          Number(
-            b.updatedAt || 0
-          )
-        );
-      }
-    )
-    .forEach(
-      function(item) {
-
-        const key =
-          semanticEventKey(
-            'completion',
-            item
-          );
-
-        if (
-          key &&
-          !seen.has(key)
-        ) {
-          seen.add(key);
-
-          notifyQueue.push({
-            type:
-              'completion',
-
-            item:
-              item
-          });
-        }
-
-      }
-    );
-
-
-  /*
-   * 先に「通知済み」を保存する。
-   * 複数タブでも、次のタブは同じキーを通知しない。
-   */
-  writeSeenKeys(
-    stored.date,
-    seen
-  );
-
-
-  notifyQueue
-    .forEach(
-      function(entry) {
-
-        if (
-          entry.type ===
-          'operation'
-        ) {
-          notifyOperation(
-            entry.item
-          );
-
-        } else if (
-          entry.type ===
-          'report'
-        ) {
-          notifyReport(
-            entry.item
-          );
-
-        } else if (
-          entry.type ===
-          'completion'
-        ) {
-          notifyCompletion(
-            entry.item
-          );
-        }
-
-      }
-    );
-
-
-  updateLastCheck(
-    notifyQueue.length > 0
-      ? (
-          '監視中・新着 ' +
-          notifyQueue.length +
-          '件'
-        )
-      : '監視中'
-  );
-}
-
-
-async function processWithLock(
-  data
-) {
-
-  /*
-   * Edge / ChromeではWeb Locksを使用。
-   * 同じnotification_monitor.htmlを複数タブで開いても
-   * 通知判定を1タブずつ処理する。
-   */
-  if (
-    navigator.locks &&
-    typeof navigator.locks.request ===
-      'function'
-  ) {
-
-    try {
-
-      await navigator.locks.request(
-        PROCESS_LOCK_NAME,
-        {
-          mode:
-            'exclusive'
-        },
-        async function() {
-          processIncomingData(
-            data
-          );
-        }
-      );
-
-      return;
-
-    } catch (error) {
-      console.error(
-        'notification lock error',
-        error
-      );
-    }
-
-  }
-
-  /*
-   * Web Locks非対応ブラウザは
-   * localStorageの通知済みキーだけで重複を抑える。
-   */
-  processIncomingData(
-    data
-  );
-}
-
-
-window.moriNotificationCallback =
-  function(data) {
-
-    polling = false;
-
-    processWithLock(
-      data
-    );
-
-  };
-
-
-function updateLastCheck(
-  suffix
-) {
-
-  if (!lastCheck) {
-    return;
-  }
-
-  const now =
-    new Date();
-
-  lastCheck.textContent =
-    '最終確認：' +
-    now.toLocaleTimeString(
-      'ja-JP',
-      {
-        hour:
-          '2-digit',
-        minute:
-          '2-digit',
-        second:
-          '2-digit'
-      }
-    ) +
-    '　' +
-    (
-      suffix ||
-      '監視中'
-    );
-}
-
-
-function poll() {
-
-  if (polling) {
-    return;
-  }
-
-  polling = true;
-
-  const script =
-    document.createElement(
-      'script'
-    );
-
-  script.src =
-    GAS_URL +
-    '?api=notificationState' +
-    '&callback=moriNotificationCallback' +
-    '&t=' +
-    Date.now();
-
-  script.async = true;
-
-  script.onerror =
-    function() {
-
-      polling = false;
-
-      if (lastCheck) {
-        lastCheck.textContent =
-          '接続エラー：' +
-          new Date()
-            .toLocaleTimeString(
-              'ja-JP'
-            );
-      }
-
-      try {
-        script.remove();
-      } catch (e) {}
-
-    };
-
-  script.onload =
-    function() {
-
-      try {
-        script.remove();
-      } catch (e) {}
-
-    };
-
-  document.head.appendChild(
-    script
-  );
-
-  window.setTimeout(
-    function() {
-
-      if (polling) {
-        polling = false;
-      }
-
-    },
-    12000
-  );
-}
-
-
-function startPolling() {
-
-  if (pollTimer) {
-    clearInterval(
-      pollTimer
-    );
-  }
-
-  poll();
-
-  pollTimer =
-    setInterval(
-      poll,
-      POLL_MS
-    );
-}
-
-
-async function enableNotificationsAndOpenViewer() {
-
-  /*
-   * ポップアップブロック回避のため、
-   * クリック直後にViewerタブを先に作る。
-   */
-  const viewerWindow =
-    window.open(
-      'about:blank',
-      'mori_delivery_viewer'
-    );
-
-  try {
-
-    const permission =
-      await Notification
-        .requestPermission();
-
-    if (
-      permission ===
-      'granted'
-    ) {
-
-      showArea(
-        'ready'
-      );
-
-      startPolling();
-
-      if (viewerWindow) {
-
-        viewerWindowRef =
-          viewerWindow;
-
-        viewerWindow.location.href =
-          VIEWER_URL;
-
-        try {
-          viewerWindow.focus();
-        } catch (e) {}
-
-        viewerOpenedThisSession =
-          true;
-
-      } else {
-
-        openViewer();
-
-      }
-
-      showWindowsNotification(
-        '納品実績｜通知モニター',
-        'Windows通知を有効にしました。',
-        'mori-monitor-enabled'
-      );
-
-      return;
-    }
-
-    if (viewerWindow) {
-      try {
-        viewerWindow.close();
-      } catch (e) {}
-    }
-
-    if (
-      permission ===
-      'denied'
-    ) {
-      showArea(
-        'blocked'
-      );
-
-    } else {
-
-      showArea(
-        'permission'
-      );
-
-    }
-
-  } catch (error) {
-
-    if (viewerWindow) {
-      try {
-        viewerWindow.close();
-      } catch (e) {}
-    }
-
-    showArea(
-      'permission'
-    );
-  }
-}
-
-
-function initialize() {
-
-  if (
-    !('Notification' in window)
-  ) {
-    showArea(
-      'blocked'
-    );
-    return;
-  }
-
-  if (
-    Notification.permission ===
-    'granted'
-  ) {
-
-    showArea(
-      'ready'
-    );
-
-    startPolling();
-
-    /*
-     * 2026-09-22:
-     * 通知モニター画面を表示したまま監視を開始する。
-     * 納品実績は「納品実績を別画面で開く」から開く。
-     */
-    return;
-  }
-
-  if (
-    Notification.permission ===
-    'denied'
-  ) {
-    showArea(
-      'blocked'
-    );
-    return;
-  }
-
-  showArea(
-    'permission'
-  );
-}
-
-
-enableButton.addEventListener(
-  'click',
-  enableNotificationsAndOpenViewer
-);
-
-
-openViewerButton.addEventListener(
-  'click',
-  openViewer
-);
-
-
-openViewerWithoutNotification
-  .addEventListener(
-    'click',
-    openViewer
-  );
-
-
-window.addEventListener(
-  'focus',
-  function() {
-
-    if (
-      Notification.permission ===
-      'granted'
-    ) {
-      poll();
-    }
-
-  }
-);
-
-
-document.addEventListener(
-  'visibilitychange',
-  function() {
-
-    if (
-      !document.hidden &&
-      Notification.permission ===
-        'granted'
-    ) {
-      poll();
-    }
-
-  }
-);
-
-
-initialize();
-</script>
 </body>
+
 </html>
+<script>// Copyright 2012 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+"use strict";var loadTimeData;class LoadTimeData{constructor(){this.data_=null}set data(value){expect(!this.data_,"Re-setting data.");this.data_=value}valueExists(id){return id in this.data_}getValue(id){expect(this.data_,"No data. Did you remember to include strings.js?");const value=this.data_[id];expect(typeof value!=="undefined","Could not find value for "+id);return value}getString(id){const value=this.getValue(id);expectIsType(id,value,"string");return value}getStringF(id,var_args){const value=this.getString(id);if(!value){return""}const args=Array.prototype.slice.call(arguments);args[0]=value;return this.substituteString.apply(this,args)}substituteString(label,var_args){const varArgs=arguments;return label.replace(/\$(.|$|\n)/g,(function(m){expect(m.match(/\$[$1-9]/),"Unescaped $ found in localized string.");return m==="$$"?"$":varArgs[m[1]]}))}getBoolean(id){const value=this.getValue(id);expectIsType(id,value,"boolean");return value}getInteger(id){const value=this.getValue(id);expectIsType(id,value,"number");expect(value===Math.floor(value),"Number isn't integer: "+value);return value}overrideValues(replacements){expect(typeof replacements==="object","Replacements must be a dictionary object.");for(const key in replacements){this.data_[key]=replacements[key]}}}function expect(condition,message){if(!condition){throw new Error("Unexpected condition on "+document.location.href+": "+message)}}function expectIsType(id,value,type){expect(typeof value===type,"["+value+"] ("+id+") is not a "+type)}expect(!loadTimeData,"should only include this file once");loadTimeData=new LoadTimeData;window.loadTimeData=loadTimeData;console.warn("crbug/1173575, non-JS module files deprecated.");</script><script>loadTimeData.data = {"header":"LOCATION のインデックス","headerDateModified":"更新日","headerName":"名前","headerSize":"サイズ","language":"ja","parentDirText":"[親ディレクトリ]","textdirection":"ltr"};</script><script>start("C:\\Users\\tadao-pc\\Documents\\Codex\\2026-10-19\\github-pages-apps-script-x20\\outputs\\FIX72_画面と通知連携修正版_20261019\\GitHub\\");</script>
+<script>onHasParentDirectory();</script>
+<script>addRow("app-launcher.js","app-launcher.js",0,3272,"3.2 kB",1792394063,"2026/10/19 16:14:23");</script>
+<script>addRow("delivery-push-host.js","delivery-push-host.js",0,10385,"10.1 kB",1792394063,"2026/10/19 16:14:23");</script>
+<script>addRow("index.html","index.html",0,12163,"11.9 kB",1792394063,"2026/10/19 16:14:23");</script>
+<script>addRow("notification_monitor.html","notification_monitor.html",0,342,"342 B",1792394063,"2026/10/19 16:14:23");</script>
